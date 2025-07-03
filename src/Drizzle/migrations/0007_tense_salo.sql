@@ -1,0 +1,1 @@
+ALTER TABLE "ticket" RENAME COLUMN "Category" TO "status";

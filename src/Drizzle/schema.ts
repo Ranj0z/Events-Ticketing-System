@@ -4,7 +4,7 @@ import {serial, boolean, varchar, text, date, decimal, integer, pgTable, pgEnum}
 
 //Role ENUM
 export const RoleEnum = pgEnum("role", ["admin", "host", "user"]);
-export const PaymentEnum = pgEnum("status", ["Pending", "In Progress", "Completed"]);
+export const PaymentEnum = pgEnum("Paymentstatus", ["Pending", "In Progress", "Completed"]);
 export const StatusEnum = pgEnum("status", ["Pending", "In Progress", "Closed"]);
 export const CategoryEnum = pgEnum("Category", ["Tech", "Data Science", "Web Dev"]);
 
@@ -53,23 +53,23 @@ export const PaymentTable = pgTable("payment", {
     PaymentID: serial("PaymentID").primaryKey(),
     EventID: integer("EventID").references(() =>EventsTable.EventID, {onDelete: "cascade"}).notNull(),
     amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-    paymentStatus: PaymentEnum("Category").default('Pending'), 
+    paymentStatus: PaymentEnum("status").default('Pending'), 
     paymentDate: date("payment_date").notNull(),
     paymentMethod: varchar("payment_method", { length: 50 }).notNull(),
     TransactionID: varchar("transaction_id", { length: 50 }).notNull(),// Auto generated
-    created_at: date("payment_date").notNull(),
-    updated_at: date("payment_date"),
+    created_at: date("payment_create").notNull(),
+    updated_at: date("payment_update"),
 })
 
 //Customer Support Ticket Table
 export const CustomerSupportTicketsTable = pgTable("ticket", {
-    TicketID: serial("PaymentID").primaryKey(),
+    TicketID: serial("TicketID").primaryKey(),
     UserID: integer("UserID").references(() =>UsersTable.UserID, {onDelete: "cascade"}).notNull(),
     subject : varchar("subject", { length: 50 }).notNull(),
     description: text("description").notNull(),
-    ticketStatus: StatusEnum("Category").default('Pending'), 
-    created_at: date("payment_date").notNull(),
-    updated_at: date("payment_date"),
+    ticketStatus: StatusEnum("status").default('Pending'), 
+    created_at: date("created_date").notNull(),
+    updated_at: date("updated_date"),
 })
 
 //Venue to Events Table  - one to many
@@ -91,3 +91,23 @@ export const UserPaymentRelations = relations(UsersTable, ({many}) =>({
 export const UserTicketsRelations = relations(UsersTable, ({many}) =>({
     CustomerSupportTickets: many (CustomerSupportTicketsTable)
 }))
+
+
+export type TIUsers = typeof UsersTable.$inferInsert;
+export type TSUsers = typeof UsersTable.$inferSelect;
+export type TICustomerSupportTickets= typeof CustomerSupportTicketsTable.$inferInsert;
+export type TSCustomerSupportTickets = typeof CustomerSupportTicketsTable.$inferSelect;
+export type TIPayment = typeof PaymentTable.$inferInsert;
+export type TSPayment = typeof PaymentTable.$inferSelect;
+export type TIEvents = typeof EventsTable.$inferInsert;
+export type TSEvents = typeof EventsTable.$inferSelect;
+export type TIVenues = typeof VenuesTable.$inferInsert;
+export type TSVenues = typeof VenuesTable.$inferSelect;
+export type TSUserLoginInput = {
+    email: string;
+    password: string;
+};
+export type TSUserVerifyInput = {
+    email: string;
+    verificationCode: string;
+};
