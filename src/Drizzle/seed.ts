@@ -3,12 +3,13 @@
 
 import db from "./db";
 import bcrypt from "bcryptjs";
-import { CustomerSupportTicketsTable, EventsTable, PaymentTable, TICustomerSupportTickets, TIEvents, TIPayment, UsersTable, VenuesTable } from "./schema";
+import { UserSupportTicketsTable, EventsTable, PaymentTable, RSVPTable, TIUserSupportTickets, TIEvents, TIPayment, UsersTable, VenuesTable } from "./schema";
 
 async function seed() {
     console.log("Seeding started...");
 
-    // password: await bcrypt.hash("mypassword", 10)
+
+    password: await bcrypt.hash("mypassword", 10)
 
 //     // Insert into Users table
 //     await db.insert(UsersTable).values([
@@ -323,104 +324,245 @@ async function seed() {
 // ] satisfies TIEvents[]);
 
 
-
-//  // Insert into PaymentTable
-//   await db.insert(PaymentTable).values([
+// // RSVP Table Seed
+// await db.insert(RSVPTable).values([
 //   {
+//     UserID: 1,
+//     RSVPID: 1,
+//     RSVPDate: new Date("2025-07-01").toISOString(),
+//     returnDate: new Date("2025-08-11").toISOString(),
+//     totalAmount: "2000.00"
+//   },
+//   {
+//     UserID: 2,
+//     EventID: 2,
+//     RSVPDate: new Date("2025-07-02").toISOString(),
+//     returnDate: new Date("2025-09-16").toISOString(),
+//     totalAmount: "3500.00"
+//   },
+//   {
+//     UserID: 3,
+//     EventID: 3,
+//     RSVPDate: new Date("2025-07-03").toISOString(),
+//     returnDate: new Date("2025-10-06").toISOString(),
+//     totalAmount: "5000.00"
+//   },
+//   {
+//     UserID: 4,
+//     EventID: 4,
+//     RSVPDate: new Date("2025-07-04").toISOString(),
+//     returnDate: new Date("2025-08-26").toISOString(),
+//     totalAmount: "3000.00"
+//   },
+//   {
+//     UserID: 5,
+//     EventID: 5,
+//     RSVPDate: new Date("2025-07-05").toISOString(),
+//     returnDate: new Date("2025-07-21").toISOString(),
+//     totalAmount: "2500.00"
+//   },
+//   {
+//     UserID: 6,
+//     EventID: 6,
+//     RSVPDate: new Date("2025-07-06").toISOString(),
+//     returnDate: new Date("2025-11-02").toISOString(),
+//     totalAmount: "4500.00"
+//   },
+//   {
+//     UserID: 7,
+//     EventID: 7,
+//     RSVPDate: new Date("2025-07-07").toISOString(),
+//     returnDate: new Date("2025-10-23").toISOString(),
+//     totalAmount: "3000.00"
+//   },
+//   {
+//     UserID: 8,
+//     EventID: 8,
+//     RSVPDate: new Date("2025-07-08").toISOString(),
+//     returnDate: new Date("2025-10-01").toISOString(),
+//     totalAmount: "1800.00"
+//   },
+//   {
+//     UserID: 9,
+//     EventID: 9,
+//     RSVPDate: new Date("2025-07-09").toISOString(),
+//     returnDate: new Date("2025-12-02").toISOString(),
+//     totalAmount: "2200.00"
+//   },
+//   {
+//     UserID: 10,
+//     EventID: 10,
+//     RSVPDate: new Date("2025-07-10").toISOString(),
+//     returnDate: new Date("2025-12-11").toISOString(),
+//     totalAmount: "4800.00"
+//   }
+// ]);
+
+// Insert into payments Table
+// await db.insert(PaymentTable).values([
+//   {
+//     RSVPID: 1,
 //     EventID: 1,
-//     amount: "2000",
+//     amount: "2000.00",
+//     balance: "0.00",
 //     paymentStatus: "Completed",
-//     paymentDate: new Date().toISOString(),
+//     paymentDate: new Date("2025-07-01").toISOString(),
 //     paymentMethod: "M-Pesa",
 //     TransactionID: "MP001001001",
 //     created_at: new Date().toISOString(),
 //     updated_at: new Date().toISOString()
 //   },
 //   {
+//     RSVPID: 2,
 //     EventID: 2,
-//     amount: "1500",
+//     amount: "1500.00",
+//     balance: "2000.00",
 //     paymentStatus: "Pending",
-//     paymentDate: new Date().toISOString(),
+//     paymentDate: new Date("2025-07-02").toISOString(),
 //     paymentMethod: "Visa",
 //     TransactionID: "VS002002002",
 //     created_at: new Date().toISOString(),
 //     updated_at: new Date().toISOString()
 //   },
 //   {
-//     EventID: 3,
-//     amount: "5000",
+//     RSVPID: 2,
+//     EventID: 2,
+//     amount: "2000.00",
+//     balance: "0.00",
 //     paymentStatus: "Completed",
-//     paymentDate: new Date().toISOString(),
+//     paymentDate: new Date("2025-07-03").toISOString(),
+//     paymentMethod: "Visa",
+//     TransactionID: "VS002002003",
+//     created_at: new Date().toISOString(),
+//     updated_at: new Date().toISOString()
+//   },
+//   {
+//     RSVPID: 3,
+//     EventID: 3,
+//     amount: "5000.00",
+//     balance: "0.00",
+//     paymentStatus: "Completed",
+//     paymentDate: new Date("2025-07-03").toISOString(),
 //     paymentMethod: "PayPal",
 //     TransactionID: "PP003003003",
 //     created_at: new Date().toISOString(),
 //     updated_at: new Date().toISOString()
 //   },
 //   {
+//     RSVPID: 4,
 //     EventID: 4,
-//     amount: "3000",
+//     amount: "1000.00",
+//     balance: "2000.00",
 //     paymentStatus: "In Progress",
-//     paymentDate: new Date().toISOString(),
+//     paymentDate: new Date("2025-07-04").toISOString(),
 //     paymentMethod: "Stripe",
-//     TransactionID: "ST004004004",
+//     TransactionID: "ST004004001",
 //     created_at: new Date().toISOString(),
 //     updated_at: new Date().toISOString()
 //   },
 //   {
-//     EventID: 5,
-//     amount: "4500",
+//     RSVPID: 4,
+//     EventID: 4,
+//     amount: "2000.00",
+//     balance: "0.00",
 //     paymentStatus: "Completed",
-//     paymentDate: new Date().toISOString(),
+//     paymentDate: new Date("2025-07-05").toISOString(),
+//     paymentMethod: "Stripe",
+//     TransactionID: "ST004004002",
+//     created_at: new Date().toISOString(),
+//     updated_at: new Date().toISOString()
+//   },
+//   {
+//     RSVPID: 5,
+//     EventID: 5,
+//     amount: "2500.00",
+//     balance: "0.00",
+//     paymentStatus: "Completed",
+//     paymentDate: new Date("2025-07-05").toISOString(),
 //     paymentMethod: "M-Pesa",
 //     TransactionID: "MP005005005",
 //     created_at: new Date().toISOString(),
 //     updated_at: new Date().toISOString()
 //   },
 //   {
+//     RSVPID: 6,
 //     EventID: 6,
-//     amount: "1200",
-//     paymentStatus: "Pending",
-//     paymentDate: new Date().toISOString(),
+//     amount: "3000.00",
+//     balance: "1500.00",
+//     paymentStatus: "In Progress",
+//     paymentDate: new Date("2025-07-06").toISOString(),
 //     paymentMethod: "Visa",
 //     TransactionID: "VS006006006",
 //     created_at: new Date().toISOString(),
 //     updated_at: new Date().toISOString()
 //   },
 //   {
-//     EventID: 7,
-//     amount: "3700",
+//     RSVPID: 6,
+//     EventID: 6,
+//     amount: "1500.00",
+//     balance: "0.00",
 //     paymentStatus: "Completed",
-//     paymentDate: new Date().toISOString(),
+//     paymentDate: new Date("2025-07-08").toISOString(),
+//     paymentMethod: "Visa",
+//     TransactionID: "VS006006007",
+//     created_at: new Date().toISOString(),
+//     updated_at: new Date().toISOString()
+//   },
+//   {
+//     RSVPID: 7,
+//     EventID: 7,
+//     amount: "3000.00",
+//     balance: "0.00",
+//     paymentStatus: "Completed",
+//     paymentDate: new Date("2025-07-07").toISOString(),
 //     paymentMethod: "Mastercard",
 //     TransactionID: "MC007007007",
 //     created_at: new Date().toISOString(),
 //     updated_at: new Date().toISOString()
 //   },
 //   {
+//     RSVPID: 8,
 //     EventID: 8,
-//     amount: "2700",
-//     paymentStatus: "In Progress",
-//     paymentDate: new Date().toISOString(),
+//     amount: "1800.00",
+//     balance: "0.00",
+//     paymentStatus: "Completed",
+//     paymentDate: new Date("2025-07-08").toISOString(),
 //     paymentMethod: "PayPal",
 //     TransactionID: "PP008008008",
 //     created_at: new Date().toISOString(),
 //     updated_at: new Date().toISOString()
 //   },
 //   {
+//     RSVPID: 9,
 //     EventID: 9,
-//     amount: "1000",
+//     amount: "1000.00",
+//     balance: "1200.00",
 //     paymentStatus: "Pending",
-//     paymentDate: new Date().toISOString(),
+//     paymentDate: new Date("2025-07-09").toISOString(),
 //     paymentMethod: "M-Pesa",
 //     TransactionID: "MP009009009",
 //     created_at: new Date().toISOString(),
 //     updated_at: new Date().toISOString()
 //   },
 //   {
-//     EventID: 10,
-//     amount: "4200",
+//     RSVPID: 9,
+//     EventID: 9,
+//     amount: "1200.00",
+//     balance: "0.00",
 //     paymentStatus: "Completed",
-//     paymentDate: new Date().toISOString(),
+//     paymentDate: new Date("2025-07-10").toISOString(),
+//     paymentMethod: "M-Pesa",
+//     TransactionID: "MP009009010",
+//     created_at: new Date().toISOString(),
+//     updated_at: new Date().toISOString()
+//   },
+//   {
+//     RSVPID: 10,
+//     EventID: 10,
+//     amount: "4800.00",
+//     balance: "0.00",
+//     paymentStatus: "Completed",
+//     paymentDate: new Date("2025-07-10").toISOString(),
 //     paymentMethod: "Visa",
 //     TransactionID: "VS010010010",
 //     created_at: new Date().toISOString(),
@@ -428,8 +570,10 @@ async function seed() {
 //   }
 // ] satisfies TIPayment[]);
 
+
+
 // // Insert into Customer Support Tickets Table
-// await db.insert(CustomerSupportTicketsTable).values([
+// await db.insert(UserSupportTicketsTable).values([
 //   {
 //     UserID: 1,
 //     subject: "Issue with ticket download",
@@ -592,10 +736,11 @@ async function seed() {
 //     created_at: new Date().toISOString(),
 //     updated_at: new Date().toISOString()
 //   }
-// ] satisfies TICustomerSupportTickets[]);
+// ] satisfies TIUserSupportTickets[]);
 
 
-    console.log("Seeding finished!");
+
+console.log("Seeding finished!");
     process.exit(0);
 }
 

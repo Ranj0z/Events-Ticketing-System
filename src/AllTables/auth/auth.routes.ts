@@ -1,4 +1,4 @@
-import { adminRoleAuth } from "./../middleware/tokensAuth"
+import { adminRoleAuth } from "../../middleware/tokensAuth"
 //routing
 import { Express } from "express";
 import { createUserController, deleteUserController, getAllUsersController, getAllUsersWithTicketsController, getUserByIdController, loginUserController, updateUserController, updateUserToHostController, verifyUserController } from "./auth.controller";

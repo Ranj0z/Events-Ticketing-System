@@ -3,7 +3,7 @@ import { createUserService, deleteUserservice, getAllUsersService, getAllUsersWi
 import bycrypt from "bcryptjs";
 import "dotenv/config"
 import jwt from "jsonwebtoken"
-import { sendEmail } from "../mailer/mailer";
+import { sendEmail } from "../../mailer/mailer";
 
 // create a user controller
 export const createUserController = async (req: Request, res: Response) => {

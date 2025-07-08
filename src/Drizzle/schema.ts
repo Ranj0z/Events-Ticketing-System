@@ -48,11 +48,23 @@ export const VenuesTable = pgTable("venue", {
     createdAt: date("created_at", ),
 })
 
+//RSVP Table
+export const RSVPTable = pgTable("RSVP", {
+    RSVPID: serial("RSVPID").primaryKey(),
+    UserID: integer("User_id").references(() =>UsersTable.UserID,{onDelete: "cascade"}).notNull(),
+    EventID: integer("Event_id").references(() =>EventsTable.EventID ,{onDelete: "cascade"}),
+    RSVPDate: date("RSVP_date").notNull(),
+    returnDate: date("return_date").notNull(),
+    totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+})
+
 //Payment Table
 export const PaymentTable = pgTable("payment", {
     PaymentID: serial("PaymentID").primaryKey(),
-    EventID: integer("EventID").references(() =>EventsTable.EventID, {onDelete: "cascade"}).notNull(),
+    RSVPID:integer("RSVP_id").references(() =>RSVPTable.RSVPID, {onDelete: "cascade"}).notNull(),
+    EventID: integer("Event_id").references(() =>EventsTable.EventID ,{onDelete: "cascade"}),
     amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+    balance: decimal("balance", { precision: 10, scale: 2 }).notNull(),
     paymentStatus: PaymentEnum("status").default('Pending'), 
     paymentDate: date("payment_date").notNull(),
     paymentMethod: varchar("payment_method", { length: 50 }).notNull(),
@@ -61,8 +73,8 @@ export const PaymentTable = pgTable("payment", {
     updated_at: date("payment_update"),
 })
 
-//Customer Support Ticket Table
-export const CustomerSupportTicketsTable = pgTable("ticket", {
+//User Support Ticket Table
+export const UserSupportTicketsTable = pgTable("ticket", {
     TicketID: serial("TicketID").primaryKey(),
     UserID: integer("UserID").references(() =>UsersTable.UserID, {onDelete: "cascade"}).notNull(),
     subject : varchar("subject", { length: 50 }).notNull(),
@@ -77,28 +89,37 @@ export const VenueRelations = relations(VenuesTable, ({many}) =>({
     events: many (EventsTable)
 }))
 
-//Event to Payments Table  - one to many
+//Event to RSVP Table  - one to many
 export const EventRelations = relations(EventsTable, ({many}) =>({
-    payments: many (PaymentTable)
+    RSVP: many(RSVPTable)    
 }))
 
-//User to Payments Table  - one to many
-export const UserPaymentRelations = relations(UsersTable, ({many}) =>({
-    payments: many (PaymentTable)
+//User to RSVP Table  - one to many
+export const UserRSVPRelations = relations(UsersTable, ({many}) =>({
+    RSVP: many(RSVPTable)
 }))
 
-//User to CustomerSupportTickets Table  - one to many
+//Rsvp to Payments Table  - one to many
+export const RsvpPaymentRelations = relations(RSVPTable, ({many}) =>({
+    payments: many (PaymentTable),
+}))
+
+//User to UserSupportTickets Table  - one to many
 export const UserTicketsRelations = relations(UsersTable, ({many}) =>({
-    CustomerSupportTickets: many (CustomerSupportTicketsTable)
+    UserSupportTickets: many (UserSupportTicketsTable)
 }))
+
+
 
 
 export type TIUsers = typeof UsersTable.$inferInsert;
 export type TSUsers = typeof UsersTable.$inferSelect;
-export type TICustomerSupportTickets= typeof CustomerSupportTicketsTable.$inferInsert;
-export type TSCustomerSupportTickets = typeof CustomerSupportTicketsTable.$inferSelect;
+export type TIUserSupportTickets= typeof UserSupportTicketsTable.$inferInsert;
+export type TSUserSupportTickets = typeof UserSupportTicketsTable.$inferSelect;
 export type TIPayment = typeof PaymentTable.$inferInsert;
 export type TSPayment = typeof PaymentTable.$inferSelect;
+export type TIRSVP = typeof RSVPTable.$inferInsert;
+export type TSRSVP = typeof RSVPTable.$inferSelect;
 export type TIEvents = typeof EventsTable.$inferInsert;
 export type TSEvents = typeof EventsTable.$inferSelect;
 export type TIVenues = typeof VenuesTable.$inferInsert;

@@ -1,0 +1,1 @@
+ALTER TABLE "payment" ADD COLUMN "balance" numeric(10, 2) NOT NULL;

@@ -1,7 +1,7 @@
 // Database
 import { eq, sql } from "drizzle-orm";
-import { TIUsers, UsersTable } from "../Drizzle/schema";
-import db from "../Drizzle/db";
+import { TIUsers, UsersTable } from "../../Drizzle/schema";
+import db from "../../Drizzle/db";
 
 //Register user
 export const createUserService = async (user: TIUsers) => {
