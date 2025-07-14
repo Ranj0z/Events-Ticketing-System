@@ -7,6 +7,7 @@ const paymentRoutes = (app: Express) => {
     //route
 //make a Payment
     app.route("/payment/makePayment").post(
+        
         async (req, res, next) =>{
             try {
                 await makePaymentController(req, res);

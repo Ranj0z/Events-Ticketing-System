@@ -1,67 +1,58 @@
 import { eq } from "drizzle-orm";
 import db from "../../Drizzle/db";
-import { TIUserSupportTickets, UserSupportTicketsTable } from "../../Drizzle/schema";
+import { TIVenues, VenuesTable } from "../../Drizzle/schema";
 
 
 
 
+//Venue Table
+//Create a new Venue
+export const createVenueService = async(newVenue :TIVenues) => {
+    await db.insert(VenuesTable).values(newVenue);
 
-//Ticket Table
-//Create a new Ticket
-export const createTicketService = async(newTicket :TIUserSupportTickets) => {
-    await db.insert(UserSupportTicketsTable).values(newTicket);
-
-    return "Ticket created successfully";
+    return "Venue created successfully";
 }
 
-//Get All Tickets from UserSupportTicketsTable
-export const getAllTicketsService = async () =>{
-    const allTickets = await db.query.UserSupportTicketsTable.findMany()
-    return allTickets;
+//Get All Venues from VenuesTable
+export const getAllVenuesService = async () =>{
+    const allVenues = await db.query.VenuesTable.findMany()
+    return allVenues;
 }
 
 
-// Get Ticket By ID
-export const getTicketByIDService = async (TicketID: number) => {
-  const TicketByID = await db.query.UserSupportTicketsTable.findFirst({
-    where: eq(UserSupportTicketsTable.TicketID, TicketID)
+// Get Venue By ID
+export const getVenueByIDService = async (VenueID: number) => {
+  const VenueByID = await db.query.VenuesTable.findFirst({
+    where: eq(VenuesTable.VenueID, VenueID)
   });
-  return TicketByID;
-};
-
-// Get Ticket By User ID
-export const getTicketByUserIDService = async (UserID: number) => {
-  const TicketByUserID = await db.query.UserSupportTicketsTable.findFirst({
-    where: eq(UserSupportTicketsTable.UserID, UserID)
-  });
-  return TicketByUserID;
+  return VenueByID;
 };
 
 
 
-//update a Ticket by id
-export const updateTicketService = async (TicketID: number, userSupportTicketsTable: Partial<TIUserSupportTickets>) => {
-    const [updated] = await db.update(UserSupportTicketsTable)
-        .set(UserSupportTicketsTable)
-        .where(eq(UserSupportTicketsTable.TicketID, TicketID))
+//update a Venue by id
+export const updateVenueService = async (VenueID: number, venuesTable: Partial<TIVenues>) => {
+    const [updated] = await db.update(VenuesTable)
+        .set(VenuesTable)
+        .where(eq(VenuesTable.VenueID, VenueID))
         .returning();
     
     if (updated) {
-        return "Ticket updated successfully ✅";
+        return "Venue updated successfully ✅";
     }
-    return "Ticket not updated"
+    return "Venue not updated"
 }
 
-// Delete Ticket By ID
-export const deleteTicketService = async (TicketID: number) =>{
-    const deletedTicket = await db.delete(UserSupportTicketsTable)
-    .where(eq(UserSupportTicketsTable.TicketID, TicketID))
+// Delete Venue By ID
+export const deleteVenueService = async (VenueID: number) =>{
+    const deletedVenue = await db.delete(VenuesTable)
+    .where(eq(VenuesTable.VenueID, VenueID))
     .returning();
 
-    if(deletedTicket.length >0){
-        return "Ticket deleted Successfully!!"
+    if(deletedVenue.length >0){
+        return "Venue deleted Successfully!!"
     }
 
-    return "Ticket deleting failed";
+    return "Venue deleting failed";
 }
 

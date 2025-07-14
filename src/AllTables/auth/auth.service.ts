@@ -25,7 +25,7 @@ export const verifyUserService = async (email: string) => {
 
 
 //login a user
-export const userLoginService = async (user: TIUsers) => {
+export const userLoginService = async (user: Partial<TIUsers>) => {
     // email and password
     const { email } = user;
 
@@ -93,12 +93,8 @@ export const updateUserToHostservice = async (ID: number, UserUpdated: Partial<T
 
 // Delete User By ID
 export const deleteUserservice = async (ID: number) =>{
-    await db.delete(UsersTable)
-    .where(eq(UsersTable.UserID, ID))
-    .returning();
-
-   
-
-    return "User deleting failed";
+    const deletedUser = await db.delete(UsersTable)
+        .where(sql`${UsersTable.UserID} = ${ID}`);
+    return deletedUser;
 }
 

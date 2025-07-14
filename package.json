@@ -10,7 +10,8 @@
     "generate": "drizzle-kit generate",
     "migrate": "tsx src/Drizzle/migrations/migrate.ts",
     "push": "drizzle-kit push",
-    "seed": "tsx src/Drizzle/seed.ts"
+    "seed": "tsx src/Drizzle/seed.ts",
+    "test": "jest"
   },
   "keywords": [],
   "author": "",
@@ -18,8 +19,12 @@
   "packageManager": "pnpm@10.12.2",
   "devDependencies": {
     "@types/cors": "^2.8.19",
+    "@types/jest": "^30.0.0",
     "@types/pg": "^8.15.4",
     "drizzle-kit": "^0.31.4",
+    "jest": "^30.0.4",
+    "ts-jest": "^29.4.0",
+    "ts-node": "^10.9.2",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3"
   },

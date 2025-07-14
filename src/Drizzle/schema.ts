@@ -112,6 +112,7 @@ export const UserTicketsRelations = relations(UsersTable, ({many}) =>({
 
 
 
+
 export type TIUsers = typeof UsersTable.$inferInsert;
 export type TSUsers = typeof UsersTable.$inferSelect;
 export type TIUserSupportTickets= typeof UserSupportTicketsTable.$inferInsert;

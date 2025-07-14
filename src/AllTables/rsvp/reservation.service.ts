@@ -29,7 +29,7 @@ export const getReservationByRSVPIDService = async (ID: number) => {
 
 // Get reservation By EventID
 export const getReservationByEventIDService = async (ID: number) => {
-  const reservationByEventID = await db.query.RSVPTable.findMany({
+  const reservationByEventID = await db.query.RSVPTable.findFirst({
     where: eq(RSVPTable.EventID, ID)
   });
   return reservationByEventID;
@@ -37,7 +37,7 @@ export const getReservationByEventIDService = async (ID: number) => {
 
 // Get reservation By UserID
 export const getReservationByUserIDService = async (ID: number) => {
-  const reservationByUserID = await db.query.RSVPTable.findMany({
+  const reservationByUserID = await db.query.RSVPTable.findFirst({
     where: eq(RSVPTable.UserID, ID)
   });
   return reservationByUserID;
