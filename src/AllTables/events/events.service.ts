@@ -5,12 +5,15 @@ import { EventsTable, TIEvents, VenuesTable } from "../../Drizzle/schema";
 
 
 //Event Table
-//Create a new Event
-export const createEventService = async(newEvent :TIEvents) => {
-    await db.insert(EventsTable).values(newEvent);
+// events.service.ts
+export const createEventService = async (newEvent: TIEvents) => {
+  const [created] = await db
+  .insert(EventsTable)
+  .values(newEvent)
+  .returning();
+  return created;                 // now you have EventID, VenueID, etc.
+};
 
-    return "Event created successfully";
-}
 
 //Get All Events from EventsTable
 export const getAllEventsService = async () =>{
@@ -29,25 +32,23 @@ export const getEventByIDService = async (EventID: number) => {
 
 
 // Get Event By VenueID
-export const getEventByVenueIDService = async (VenueID: number) => {
+export const getEventByVenueIDService = async (venueID: number) => {
   const EventByVenueID = await db.query.EventsTable.findFirst({
-    where: eq(EventsTable.VenueID, VenueID)
+    where: eq(EventsTable.VenueID, venueID)
   });
   return EventByVenueID;
 };
 
 
 //update a Event by id
-export const updateEventService = async (EventID: number, eventsTable: Partial<TIEvents>) => {
+export const updateEventService = async (eventID: number, eventsTable: Partial<TIEvents>) => {
     const [updated] = await db.update(EventsTable)
-        .set(EventsTable)
-        .where(eq(EventsTable.EventID, EventID))
+        .set(eventsTable)
+        .where(eq(EventsTable.EventID, eventID))
         .returning();
-    
-    if (updated) {
-        return "Event updated successfully ✅";
-    }
-    return "Event not updated"
+
+    return updated;
+  
 }
 
 // Delete Event By ID
@@ -56,10 +57,6 @@ export const deleteEventService = async (EventID: number) =>{
     .where(eq(EventsTable.EventID, EventID))
     .returning();
 
-    if(deletedEvent.length >0){
-        return "Event deleted Successfully!!"
-    }
-
-    return "Event deleting failed";
+  return deletedEvent;
 }
 

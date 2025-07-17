@@ -51,7 +51,7 @@ const EventRoutes = (app: Express) => {
     )
     
     //update Event by id
-    app.route("/event/update/:id").put(
+    app.route("/event/update/:id").patch(
         async (req, res, next) => {
             try {
                 await updateEventController(req, res);

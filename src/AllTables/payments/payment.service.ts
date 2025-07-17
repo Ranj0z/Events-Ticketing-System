@@ -7,14 +7,20 @@ import { PaymentTable, TIPayment } from "../../Drizzle/schema";
 //Payment Table
 //Make a new Payment
 export const makePaymentService = async (payment: TIPayment) => {
-    await db.insert(PaymentTable).values(payment);
+    const [newPayment] = await db
+    .insert(PaymentTable)
+    .values(payment)
+    .returning();
 
-    return "Payment made sucessfully";
+    return newPayment;
 }
 
 //Get All Existing Payments
 export const getAllPaymentsService = async() =>{
-    const allPayments = await db.query.PaymentTable.findMany();
+    const allPayments = await db
+    .query
+    .PaymentTable
+    .findMany();
     return allPayments;
 }
 
@@ -48,9 +54,5 @@ export const deletePaymentService = async (ID: number) =>{
     .where(eq(PaymentTable.PaymentID, ID))
     .returning();
 
-    if(deletedPayment.length >0){
-        return "Payment deleted Successfully!!"
-    }
-
-    return "Failed to delete Payment!!";
+    return deletedPayment;
 }

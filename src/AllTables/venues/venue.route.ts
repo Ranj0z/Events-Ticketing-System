@@ -2,6 +2,16 @@
 import { Express } from "express";
 import { createVenueController, deleteVenueController, getAllVenueController, getVenueByIdController, updateVenueController } from "./venue.controller";
 
+ /**
+ * venue + Venue full‑stack integration tests
+ *
+ * Assumes these routes exist (per venueRoutes):
+ *   POST   /venue/newVenue              – create venue
+ *   GET    /venue/allVenues             – list Venues
+ *   GET    /venue/:id                   – get by venueId
+ *   PUT    /venue/update/:id            – update by venueId
+ *   DELETE /venue/delete/:id            – delete by venueId
+ */
 
 //CRUD
 const VenueRoutes = (app: Express) => {
@@ -40,7 +50,7 @@ const VenueRoutes = (app: Express) => {
     )
 
     //update Venue by id
-    app.route("/venue/update/:id").put(
+    app.route("/venue/update/:id").patch(
         async (req, res, next) => {
             try {
                 await updateVenueController(req, res);

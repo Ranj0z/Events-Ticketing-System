@@ -7,6 +7,7 @@ export const RoleEnum = pgEnum("role", ["admin", "host", "user"]);
 export const PaymentEnum = pgEnum("Paymentstatus", ["Pending", "In Progress", "Completed"]);
 export const StatusEnum = pgEnum("status", ["Pending", "In Progress", "Closed"]);
 export const CategoryEnum = pgEnum("Category", ["Tech", "Data Science", "Web Dev"]);
+export const RSVPEnum = pgEnum("RSVPstatus", ["Pending", "Booked", "Cancelled"]);
 
 //Users Table 
 export const UsersTable = pgTable("user", {
@@ -35,9 +36,10 @@ export const EventsTable = pgTable("events", {
     ticketsPrice: decimal("tickets_price", { precision: 10, scale: 2 }).notNull(),
     totalTickets: integer("total_tickets").notNull(),
     soldTickets: integer("sold_tickets").notNull(),
-    updatedAt: date("date_updated").notNull(),
     createdAt: date("date_created").notNull(),
+    updatedAt: date("date_updated")
 })
+
 
 //Venues Table
 export const VenuesTable = pgTable("venue", {
@@ -54,7 +56,7 @@ export const RSVPTable = pgTable("RSVP", {
     UserID: integer("User_id").references(() =>UsersTable.UserID,{onDelete: "cascade"}).notNull(),
     EventID: integer("Event_id").references(() =>EventsTable.EventID ,{onDelete: "cascade"}),
     RSVPDate: date("RSVP_date").notNull(),
-    returnDate: date("return_date").notNull(),
+    RSVPStatus: RSVPEnum("StatusRSVP").default('Pending'),
     totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
 })
 

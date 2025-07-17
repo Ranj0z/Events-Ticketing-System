@@ -9,13 +9,13 @@ export const makePaymentController = async( req: Request, res: Response) =>{
     try {
         const payment = req.body;
 
-        const makePayment = await makePaymentService(payment)
-        if (!makePayment) 
+        const newPayment = await makePaymentService(payment)
+        if (!newPayment) {
             return res.json({message: "Payment not successfull"})
-            return res.status(201).json({message: "Payment made successfully!!", payment})
-   
-    } catch (error :any) {
-        return res.status(500).json({error: "error.message"});
+        }
+        return res.status(201).json({message: "Payment made successfully!!", newPayment: newPayment})
+       } catch (error :any) {
+        return res.status(500).json({error: error.message});
     }
 }
 
@@ -26,7 +26,7 @@ export const getAllPaymentsController = async(req: Request, res: Response) =>{
         if (!allPayments || allPayments.length === 0) {
             return res.status(404).json({message : "No Payments Found"})
         }
-        return res.status(200).json({data: allPayments})
+        return res.status(200).json({allPayments: allPayments})
     } catch (error: any) {
         return res.status(500).json({error: error.message})
     }
@@ -91,11 +91,17 @@ export const deletePaymentController = async (req: Request, res: Response) => {
             return res.status(400).json({message: "Invalid ID format"});
         }
         
-        const deletedMessage = await deletePaymentService(id);
-        if (!deletedMessage) {
+        const deletedPayment = await getPaymentByIDService(id);
+        if (!deletedPayment) {
             return res.status(404).json({message: "Payment not found"});
         }
-        return res.status(200).json({message: deletedMessage});
+
+        const delPayment = await deletePaymentService(id);
+        if (delPayment.length >0) {
+        return res.status(200).json({message: "Payment deleted Successfully!!", deletedPayment});
+        }
+
+        return res.status(404).json({message: "Failed to delete Payment!!"});
     } catch (error: any) {
         return res.status(500).json({error: error.message});
     }

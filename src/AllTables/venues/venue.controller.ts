@@ -1,7 +1,7 @@
 // API
 
 import { Request, Response } from "express";
-import { createVenueService, deleteVenueService, getAllVenuesService, getVenueByIDService, updateVenueService } from "../tickets/ticket.service";
+import { createVenueService, deleteVenueService, getAllVenuesService, getVenueByIDService, updateVenueService } from "./venue.service";
 
 
 
@@ -10,11 +10,11 @@ export const createVenueController = async (req: Request, res: Response) =>{
     try {
         const newVenue = req.body;
 
-        const createCar = await createVenueService(newVenue)
-        if (!createCar) {
+        const createVenue = await createVenueService(newVenue)
+        if (!createVenue) {
             return res.json({message: "New Venue not created"})
         } 
-        return res.status(201).json({message: "New Venue Created!!", newVenue})            
+        return res.status(201).json({ message: "New Venue Created!!", venue: createVenue });
     } catch (error: any) {
         return res.status(500).json({error: error.message})
     }
@@ -45,7 +45,7 @@ export const getVenueByIdController = async (req: Request, res: Response) => {
         }
         const getVenueByID = await getVenueByIDService(id);
         if (!getVenueByID) {
-            return res.status(404).json({message: "Venue not found"});
+            return res.status(404).json({message: "Venue not found!!"});
         }
         return res.status(200).json({data: getVenueByID});
     } catch (error: any) {
@@ -62,17 +62,18 @@ export const updateVenueController = async (req: Request, res: Response) => {
         }
         
         const VenueUpdates = req.body;
-        
-        // Convert dueDate to Date object if provided
-        if (VenueUpdates.dueDate) {
-            VenueUpdates.dueDate = new Date(VenueUpdates.dueDate);
-        }
 
-        const updatedMessage = await updateVenueService(id, VenueUpdates);
-        if (!updatedMessage) {
-            return res.status(404).json({message: "Venue not found !!"});
-        }        
-        return res.status(200).json({message: updatedMessage});
+        const getVenueByID = await getVenueByIDService(id);
+            if (!getVenueByID) {
+                return res.status(404).json({message: "Venue not found"});
+        }       
+
+        const updated = await updateVenueService(id, VenueUpdates);
+        if (!updated) {
+            return res.status(404).json({message: "Venue not Updated !!"});
+        }       
+
+        return res.status(200).json({message: "Venue updated successfully ✅", updated});
     } catch (error: any) {
         return res.status(500).json({error: error.message});
     }
@@ -86,11 +87,17 @@ export const deleteVenueController = async (req: Request, res: Response) => {
             return res.status(400).json({message: "Invalid ID format"});
         }
         
-        const deletedMessage = await deleteVenueService(id);
-        if (!deletedMessage) {
-            return res.status(404).json({message: "Venue not found !!!"});
+        const deletedVenue = await getVenueByIDService(id);
+        if (!deletedVenue) {
+            return res.status(404).json({message: "Venue not found!!!! Failed to delete"});
         }
-        return res.status(200).json({message: deletedMessage});
+
+        const deleteVenue =await deleteVenueService(id);
+
+         if(deleteVenue.length = 0){
+        return res.status(500).json({message: "Venue deleting failed due to error"})
+    }
+        return res.status(200).json({message: "Venue deleted Successfully!!", deletedVenue});
     } catch (error: any) {
         return res.status(500).json({error: error.message});
     }

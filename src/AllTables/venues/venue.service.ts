@@ -7,11 +7,14 @@ import { TIVenues, VenuesTable } from "../../Drizzle/schema";
 
 //Venue Table
 //Create a new Venue
-export const createVenueService = async(newVenue :TIVenues) => {
-    await db.insert(VenuesTable).values(newVenue);
+export const createVenueService = async (newVenue: TIVenues) => {
+  const [createdVenue] = await db
+    .insert(VenuesTable)
+    .values(newVenue)
+    .returning(); // returns inserted row(s) including serial VenueID
 
-    return "Venue created successfully";
-}
+  return createdVenue;
+};
 
 //Get All Venues from VenuesTable
 export const getAllVenuesService = async () =>{
@@ -31,16 +34,12 @@ export const getVenueByIDService = async (VenueID: number) => {
 
 
 //update a Venue by id
-export const updateVenueService = async (VenueID: number, venuesTable: Partial<TIVenues>) => {
+export const updateVenueService = async (venueId: number, venuesTable: Partial<TIVenues>) => {
     const [updated] = await db.update(VenuesTable)
-        .set(VenuesTable)
-        .where(eq(VenuesTable.VenueID, VenueID))
-        .returning();
-    
-    if (updated) {
-        return "Venue updated successfully ✅";
-    }
-    return "Venue not updated"
+        .set(venuesTable)
+        .where(eq(VenuesTable.VenueID, venueId))
+        .returning();  
+    return updated;
 }
 
 // Delete Venue By ID
@@ -48,11 +47,6 @@ export const deleteVenueService = async (VenueID: number) =>{
     const deletedVenue = await db.delete(VenuesTable)
     .where(eq(VenuesTable.VenueID, VenueID))
     .returning();
-
-    if(deletedVenue.length >0){
-        return "Venue deleted Successfully!!"
-    }
-
-    return "Venue deleting failed";
+   return deletedVenue;
 }
 

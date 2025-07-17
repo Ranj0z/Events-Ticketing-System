@@ -51,7 +51,7 @@ const TicketRoutes = (app: Express) => {
     )
 
     //update Ticket by id
-    app.route("/ticket/update/:id").put(
+    app.route("/ticket/updateticket/:id").patch(
         async (req, res, next) => {
             try {
                 await updateTicketController(req, res);

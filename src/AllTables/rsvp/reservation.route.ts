@@ -59,7 +59,7 @@ const rsvpRoutes = (app: Express) => {
     )
     
     //update reservation by id
-    app.route("/reservation/update/:id").put(
+    app.route("/reservation/update/:id").patch(
         async (req, res, next) => {
             try {
                 await updateReservationController(req, res);

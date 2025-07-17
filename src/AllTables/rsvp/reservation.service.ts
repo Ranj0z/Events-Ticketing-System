@@ -7,9 +7,11 @@ import { RSVPTable, TIRSVP } from "../../Drizzle/schema";
 //Reservation Table
 //Create a new reservation
 export const createReservationService = async(newreservation :TIRSVP) => {
-    await db.insert(RSVPTable).values(newreservation);
+    const RSVP = await db.insert(RSVPTable)
+    .values(newreservation)
+    .returning();
 
-    return "Reservation created successfully";
+    return RSVP;
 }
 
 //Get All reservation from RSVP Table
@@ -51,10 +53,7 @@ export const updateReservationService = async (ID: number, rsvpTable: Partial<TI
         .where(eq(RSVPTable.RSVPID, ID))
         .returning();
     
-    if (updated) {
-        return "RSVP updated successfully ✅";
-    }
-    return "RSVP not updated"
+   return updated;
 }
 
 // Delete Reservation By ID
@@ -63,9 +62,6 @@ export const deleteReservationService = async (ID: number) =>{
     .where(eq(RSVPTable.RSVPID, ID))
     .returning();
 
-    if(deletedReservation.length >0){
-        return "Reservation deleted Successfully!!"
-    }
 
-    return "Reservation not deleted!!";
+    return deletedReservation;
 }

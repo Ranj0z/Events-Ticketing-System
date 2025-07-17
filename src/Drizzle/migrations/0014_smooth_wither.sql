@@ -1,0 +1,1 @@
+ALTER TABLE "RSVP" ADD COLUMN "StatusRSVP" "RSVPstatus" DEFAULT 'Pending';

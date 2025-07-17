@@ -3,16 +3,18 @@
 import { Request, Response } from "express";
 import { createEventService, deleteEventService, getAllEventsService, getEventByIDService, getEventByVenueIDService, updateEventService } from "./events.service";
 
+
+
 //Create a new Event
 export const createEventController = async (req: Request, res: Response) =>{
     try {
         const newEvent = req.body;
 
-        const createCar = await createEventService(newEvent)
-        if (!createCar) {
+        const createEvent = await createEventService(newEvent)
+        if (!createEvent) {
             return res.json({message: "New Event not created"})
         } 
-        return res.status(201).json({message: "New Event Created!!", newEvent})            
+        return res.status(201).json({message: "New Event Created!!", newEvent: createEvent})            
     } catch (error: any) {
         return res.status(500).json({error: error.message})
     }
@@ -21,8 +23,6 @@ export const createEventController = async (req: Request, res: Response) =>{
 //Get all Events from EventTable
 export const getAllEventController = async (req: Request, res: Response) =>{
     try {
-        const allEvents =req.body;
-
         const getAllEvents = await getAllEventsService();
          if (!getAllEvents || getAllEvents.length === 0) {
             return res.status(404).json({message: "No Events found"});
@@ -46,7 +46,7 @@ export const getEventByIdController = async (req: Request, res: Response) => {
         if (!getEventByID) {
             return res.status(404).json({message: "Event not found"});
         }
-        return res.status(200).json({data: getEventByID});
+        return res.status(200).json({event: getEventByID});
     } catch (error: any) {
         return res.status(500).json({error: error.message});
     }
@@ -79,19 +79,20 @@ export const updateEventController = async (req: Request, res: Response) => {
         }
         
         const EventUpdates = req.body;
-        
-        // Convert dueDate to Date object if provided
-        if (EventUpdates.dueDate) {
-            EventUpdates.dueDate = new Date(EventUpdates.dueDate);
-        }
 
-        const updatedMessage = await updateEventService(id, EventUpdates);
-        if (!updatedMessage) {
-            return res.status(404).json({message: "Event not found !!"});
-        }        
-        return res.status(200).json({message: updatedMessage});
+        const getEventByID = await getEventByIDService(id);
+        if (!getEventByID) {
+            return res.status(404).json({message: "Event not found"});
+        }       
+
+        const updated = await updateEventService(id, EventUpdates);
+        if (!updated) {
+            return res.status(404).json({message: "Event not Updated !!"});
+        }  
+           
+        return res.status(200).json({message: "Event updated successfully ✅", updated});
     } catch (error: any) {
-        return res.status(500).json({error: error.message});
+        return res.status(500).json({error: error.message });
     }
 }
 
@@ -103,13 +104,19 @@ export const deleteEventController = async (req: Request, res: Response) => {
             return res.status(400).json({message: "Invalid ID format"});
         }
         
-        const deletedMessage = await deleteEventService(id);
-        if (!deletedMessage) {
-            return res.status(404).json({message: "Event not found !!!"});
+        const deletedEvent = await getEventByIDService(id);
+        if (!deletedEvent) {
+            return res.status(404).json({message: "Event not found !!!  Failed to delete"});
         }
-        return res.status(200).json({message: deletedMessage});
+        
+        const delEvent =await deleteEventService(id);        
+
+        if(delEvent.length >0){
+            return res.status(200).json({message: "Event deleted Successfully!!", deletedEvent});
+        }
+        
     } catch (error: any) {
-        return res.status(500).json({error: error.message});
+        return res.status(500).json({message: "Event deleting failed"});
     }
 }
 

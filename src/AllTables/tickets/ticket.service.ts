@@ -6,30 +6,32 @@ import { TIUserSupportTickets, UserSupportTicketsTable } from "../../Drizzle/sch
 //Ticket Table
 //Create a new Ticket
 export const createTicketService = async(newTicket :TIUserSupportTickets) => {
-    await db.insert(UserSupportTicketsTable).values(newTicket);
+    const [Ticket] = await db.insert(UserSupportTicketsTable)
+    .values(newTicket)
+    .returning();
 
-    return "Ticket created successfully";
+    return Ticket;
 }
 
 //Get All Tickets from UserSupportTicketsTable
 export const getAllTicketsService = async () =>{
-    const allTickets = await db.query.UserSupportTicketsTable.findMany()
+    const [allTickets] = await db.query.UserSupportTicketsTable.findMany()
     return allTickets;
 }
 
 
 // Get Ticket By ID
-export const getTicketByIDService = async (TicketID: number) => {
+export const getTicketByIDService = async (ticketID: number) => {
   const TicketByID = await db.query.UserSupportTicketsTable.findFirst({
-    where: eq(UserSupportTicketsTable.TicketID, TicketID)
+    where: eq(UserSupportTicketsTable.TicketID, ticketID)
   });
   return TicketByID;
 };
 
 // Get Ticket By User ID
-export const getTicketByUserIDService = async (UserID: number) => {
+export const getTicketByUserIDService = async (userId: number) => {
   const TicketByUserID = await db.query.UserSupportTicketsTable.findFirst({
-    where: eq(UserSupportTicketsTable.UserID, UserID)
+    where: eq(UserSupportTicketsTable.UserID, userId)
   });
   return TicketByUserID;
 };
@@ -37,28 +39,21 @@ export const getTicketByUserIDService = async (UserID: number) => {
 
 
 //update a Ticket by id
-export const updateTicketService = async (TicketID: number, userSupportTicketsTable: Partial<TIUserSupportTickets>) => {
+export const updateTicketService = async (ticketId: number, userSupportTicketsTable: Partial<TIUserSupportTickets>) => {
     const [updated] = await db.update(UserSupportTicketsTable)
-        .set(UserSupportTicketsTable)
-        .where(eq(UserSupportTicketsTable.TicketID, TicketID))
+        .set(userSupportTicketsTable)
+        .where(eq(UserSupportTicketsTable.TicketID, ticketId))
         .returning();
     
-    if (updated) {
-        return "Ticket updated successfully ✅";
-    }
-    return "Ticket not updated"
+    return updated;
 }
 
 // Delete Ticket By ID
-export const deleteTicketService = async (TicketID: number) =>{
+export const deleteTicketService = async (ticketId: number) =>{
     const deletedTicket = await db.delete(UserSupportTicketsTable)
-    .where(eq(UserSupportTicketsTable.TicketID, TicketID))
+    .where(eq(UserSupportTicketsTable.TicketID, ticketId))
     .returning();
 
-    if(deletedTicket.length >0){
-        return "Ticket deleted Successfully!!"
-    }
-
-    return "Ticket deleting failed";
+    return deletedTicket;
 }
 

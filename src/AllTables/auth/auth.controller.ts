@@ -184,7 +184,7 @@ export const getAllUsersWithTicketsController = async (req: Request, res: Respon
 }
 
 
-// Update User
+// Update User by ID
 export const updateUserController = async (req: Request, res: Response) => {
     try {
         const id = parseInt(req.params.id);
