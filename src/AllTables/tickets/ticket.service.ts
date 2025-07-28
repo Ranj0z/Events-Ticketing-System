@@ -15,7 +15,7 @@ export const createTicketService = async(newTicket :TIUserSupportTickets) => {
 
 //Get All Tickets from UserSupportTicketsTable
 export const getAllTicketsService = async () =>{
-    const [allTickets] = await db.query.UserSupportTicketsTable.findMany()
+    const allTickets = await db.query.UserSupportTicketsTable.findMany()
     return allTickets;
 }
 

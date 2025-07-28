@@ -7,7 +7,7 @@ export const options = {
 };
 
 export default function () {
-    const url = 'http://localhost:8081/event';
+    const url = 'http://localhost:8081/event/allevents';
 
     const params = {
         headers: {
@@ -25,7 +25,7 @@ export default function () {
         'has data array': (r) => {
             try {
                 const body = JSON.parse(r.body as string);
-                return Array.isArray(body.events) && body.events.length > 0;
+                return Array.isArray(body.Events) && body.Events.length > 0;
             } catch {
                 return false;
             }

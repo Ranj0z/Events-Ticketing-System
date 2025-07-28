@@ -7,9 +7,17 @@ import VenueRoutes from './AllTables/venues/venue.route';
 import TicketRoutes from './AllTables/tickets/ticket.route';
 
 const app = express();
+import cors from "cors";
 
 app.use(express.json()); // Parse JSON bodies
 
+
+  app.use(cors({
+    origin: '*',
+    methods: ["GET", "POST", "PUT", "DELETE"]
+  })); // 👈 Enables cross-origin requests
+  app.use(express.json());
+  
 // Routes
 UserRoutes(app);
 paymentRoutes(app);

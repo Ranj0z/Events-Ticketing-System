@@ -20,7 +20,10 @@ export const UsersTable = pgTable("user", {
     password: varchar ("password", ).notNull(),
     role: RoleEnum("role").default("user"),
     isVerified: boolean("is_verified").default(false),
-    verificationCode: varchar("verification_code", {length: 10})
+    verificationCode: varchar("verification_code", {length: 10}),
+    image_url: varchar("image_url"),
+    createdAt: date("date_created"),
+    updatedAt: date("date_updated")
     }
 )
 
@@ -36,6 +39,7 @@ export const EventsTable = pgTable("events", {
     ticketsPrice: decimal("tickets_price", { precision: 10, scale: 2 }).notNull(),
     totalTickets: integer("total_tickets").notNull(),
     soldTickets: integer("sold_tickets").notNull(),
+    image_url: varchar("Eimage_url"),
     createdAt: date("date_created").notNull(),
     updatedAt: date("date_updated")
 })
@@ -46,6 +50,7 @@ export const VenuesTable = pgTable("venue", {
     VenueID: serial("VenueID").primaryKey(),
     venueName: varchar("venue_name", { length: 100 }).notNull(),
     address: varchar("address", { length: 255 }).notNull(),
+    image_url: varchar("Vimage_url"),
     capacity: integer("capacity"),
     createdAt: date("created_at", ),
 })

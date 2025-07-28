@@ -9,7 +9,7 @@ async function seed() {
     console.log("Seeding started...");
 
 
-    password: await bcrypt.hash("mypassword", 10)
+    // password: await bcrypt.hash("mypassword", 10)
 
 //     // Insert into Users table
 //     await db.insert(UsersTable).values([

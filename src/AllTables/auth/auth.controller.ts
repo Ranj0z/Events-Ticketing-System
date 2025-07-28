@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { createUserService, deleteUserservice, getAllUsersService, getAllUsersWithTicketsService, getUserByEmailService, getUserByIDService, updateUserservice, updateUserToHostservice, userLoginService, verifyUserService } from "./auth.service";
+import { createUserService, deleteUserservice, getAllUsersService, getAllUsersWithTicketsService, getUserByEmailService, getUserByIDService, updateHostToUserservice, updateUserservice, updateUserToAdminservice, updateUserToHostservice, userLoginService, verifyUserService } from "./auth.service";
 import bycrypt from "bcryptjs";
 import "dotenv/config"
 import jwt from "jsonwebtoken"
@@ -126,13 +126,7 @@ export const loginUserController = async (req: Request, res: Response) => {
         return res.status(200).json({
             message: "Login successfull",
             token,
-            user: {
-                user_id: userExist.UserID,
-                first_name: userExist.firstName,
-                last_name: userExist.lastName,
-                email: userExist.email,
-                role: userExist.role
-            }
+            user: userExist
         })
     } catch (error: any) {
         return res.status(500).json({ error: error.message });
@@ -194,15 +188,22 @@ export const updateUserController = async (req: Request, res: Response) => {
         
         const UserUpdates = req.body;
 
+        const getUserByID = await getUserByIDService(id);
+                if (!getUserByID) {
+                    return res.status(404).json({message: "User not found"});
+                }       
+        
+
         const updatedMessage = await updateUserservice(id, UserUpdates);
         if (!updatedMessage) {
             return res.status(404).json({message: "User not found!!"});
         }        
-        return res.status(200).json({message: updatedMessage});
+        return res.status(200).json({message: "User updated successfully ✅", UpdatedUser: updatedMessage});
     } catch (error: any) {
         return res.status(500).json({error: error.message});
     }
-}
+}    
+
 // Update User to host
 export const updateUserToHostController = async (req: Request, res: Response) => {
     try {
@@ -213,16 +214,75 @@ export const updateUserToHostController = async (req: Request, res: Response) =>
         
         const UserUpdates = req.body;
 
+        const getUserByID = await getUserByIDService(id);
+                if (!getUserByID) {
+                    return res.status(404).json({message: "User not found"});
+                }       
+        
+
         const updatedMessage = await updateUserToHostservice(id, UserUpdates);
         if (!updatedMessage) {
             return res.status(404).json({message: "User not found!!"});
         }        
-        return res.status(200).json({message: updatedMessage});
+        return res.status(200).json({message: "Host role updated successfully ✅", UpdatedUser: updatedMessage});
     } catch (error: any) {
         return res.status(500).json({error: error.message});
     }
 }
 
+// Update User to host
+export const updateUserToAdminController = async (req: Request, res: Response) => {
+    try {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({message: "Invalid ID format"});
+        }
+        
+        const UserUpdates = req.body;
+
+        const getUserByID = await getUserByIDService(id);
+                if (!getUserByID) {
+                    return res.status(404).json({message: "User not found"});
+                }       
+        
+
+        const updatedMessage = await updateUserToAdminservice(id, UserUpdates);
+        if (!updatedMessage) {
+            return res.status(404).json({message: "User not found!!"});
+        }        
+        return res.status(200).json({message: "Host role updated successfully ✅", UpdatedUser: updatedMessage});
+    } catch (error: any) {
+        return res.status(500).json({error: error.message});
+    }
+}
+
+// Update host to user
+export const downgradeHostToUserController = async (req: Request, res: Response) => {
+    try {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({message: "Invalid ID format"});
+        }
+        
+        const UserUpdates = req.body;
+
+        const getUserByID = await getUserByIDService(id);
+                if (!getUserByID) {
+                    return res.status(404).json({message: "User not found"});
+                }       
+        
+
+        const updatedMessage = await updateHostToUserservice(id, UserUpdates);
+        if (!updatedMessage) {
+            return res.status(404).json({message: "User not found!!"});
+        }        
+        return res.status(200).json({message: "User role downgraded successfully ✅", UpdatedUser: updatedMessage});
+    } catch (error: any) {
+        return res.status(500).json({error: error.message});
+    }
+}
+
+    
 // delete User controller
 export const deleteUserController = async (req: Request, res: Response) => {
     try {

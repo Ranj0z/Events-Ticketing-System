@@ -31,7 +31,7 @@ export default function () {
         'has data array': (r) => {
             try {
                 const body = JSON.parse(r.body as string);
-                return Array.isArray(body.events) && body.events.length > 0;
+                return Array.isArray(body.Events) && body.Events.length > 0;
             } catch {
                 return false;
             }

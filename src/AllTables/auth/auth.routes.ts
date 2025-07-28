@@ -1,7 +1,7 @@
 import { adminRoleAuth } from "../../middleware/tokensAuth"
 //routing
 import { Express } from "express";
-import { createUserController, deleteUserController, getAllUsersController, getAllUsersWithTicketsController, getUserByIdController, loginUserController, updateUserController, updateUserToHostController, verifyUserController } from "./auth.controller";
+import { createUserController, deleteUserController, downgradeHostToUserController, getAllUsersController, getAllUsersWithTicketsController, getUserByIdController, loginUserController, updateUserController, updateUserToAdminController, updateUserToHostController, verifyUserController } from "./auth.controller";
 
 //Auth Route
 const UserRoutes = (app: Express) => {
@@ -95,6 +95,28 @@ const UserRoutes = (app: Express) => {
         async (req, res, next) => {
             try {
                 await updateUserToHostController(req, res);
+            } catch (error) {
+                next(error);
+            }
+        }
+    );
+
+    //update User to admin by id
+    app.route("/User/updatetoadmin/:id").patch(
+        async (req, res, next) => {
+            try {
+                await updateUserToAdminController(req, res);
+            } catch (error) {
+                next(error);
+            }
+        }
+    );
+
+    //update host to User by id
+    app.route("/User/downgradetouser/:id").patch(
+        async (req, res, next) => {
+            try {
+                await downgradeHostToUserController(req, res);
             } catch (error) {
                 next(error);
             }

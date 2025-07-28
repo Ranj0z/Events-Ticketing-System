@@ -19,7 +19,7 @@ export const options = {
 };
 
 export default function () {
-    const res = http.get(`${BASE_URL}/event`, {
+    const res = http.get(`${BASE_URL}/event/allevents`, {
         headers: {
             'Content-Type': 'application/json',
             // 'Authorization': `Bearer YOUR_VALID_TOKEN`,
@@ -31,7 +31,7 @@ export default function () {
         'has data array': (r) => {
             try {
                 const body = JSON.parse(r.body as string);
-                return Array.isArray(body.events);
+                return Array.isArray(body.Events);
             } catch {
                 return false;
             }

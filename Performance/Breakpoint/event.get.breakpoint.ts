@@ -32,7 +32,7 @@ export default function () {
         'has data array': (r) => {
             try {
                 const body = JSON.parse(r.body as string);
-                return Array.isArray(body.events);
+                return Array.isArray(body.Events);
             } catch {
                 return false;
             }

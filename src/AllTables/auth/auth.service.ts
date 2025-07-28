@@ -29,16 +29,10 @@ export const userLoginService = async (user: Partial<TIUsers>) => {
     // email and password
     const { email } = user;
 
-    return await db.query.UsersTable.findFirst({
-        columns: {
-            UserID: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            password: true,
-            role: true
-        }, where: sql`${UsersTable.email} = ${email} `
-    })
+    const LoggedInUser = await db.query.UsersTable.findFirst({
+        where: sql`${UsersTable.email} = ${email} `
+    });
+    return LoggedInUser;
 }
 
 //Get All Existing Users
@@ -72,24 +66,40 @@ export const updateUserservice = async (ID: number, UserUpdated: Partial<TIUsers
         .where(eq(UsersTable.UserID, ID))
         .returning();
     
-    if (updated) {
-        return "User updated successfully ✅";
-    }
-    return "User not updated!!"
+    return updated;
 }
 
 //update a User to host
-export const updateUserToHostservice = async (ID: number, UserUpdated: Partial<TIUsers>) => {
+export const updateUserToHostservice = async (ID: number, UserUpdated: {"role" : "host"}) => {
     const [updated] = await db.update(UsersTable)
         .set(UserUpdated)
         .where(eq(UsersTable.UserID, ID))
         .returning();
     
-    if (updated) {
-        return "Host role updated successfully ✅";
-    }
-    return "User not updated!!"
+    return updated;
 }
+
+//update a User to host
+export const updateUserToAdminservice = async (ID: number, UserUpdated: {"role" : "admin"}) => {
+    const [updated] = await db.update(UsersTable)
+        .set(UserUpdated)
+        .where(eq(UsersTable.UserID, ID))
+        .returning();
+    
+    return updated;
+}
+
+//update a host to User
+export const updateHostToUserservice = async (ID: number, UserUpdated: {"role" : "user"}) => {
+    const [updated] = await db.update(UsersTable)
+        .set(UserUpdated)
+        .where(eq(UsersTable.UserID, ID))
+        .returning();
+    
+    return updated;
+}
+
+
 
 // Delete User By ID
 export const deleteUserservice = async (ID: number) =>{
