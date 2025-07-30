@@ -5,12 +5,16 @@ import rsvpRoutes from './AllTables/rsvp/reservation.route';
 import EventRoutes from './AllTables/events/events.route';
 import VenueRoutes from './AllTables/venues/venue.route';
 import TicketRoutes from './AllTables/tickets/ticket.route';
+import mpesaRoutes from "./mpesa/mpesa.router";
 
 const app = express();
 import cors from "cors";
+import { logger } from './middleware/logger';
 
 app.use(express.json()); // Parse JSON bodies
+app.use("/api/mpesa", mpesaRoutes);
 
+app.use(logger);
 
   app.use(cors({
     origin: '*',
