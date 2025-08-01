@@ -1,6 +1,6 @@
 //routing
 import { Express } from "express";
-import { createTicketController, deleteTicketController, getAllTicketController, getTicketByIdController, getTicketByUserIdController, updateTicketController } from "./ticket.controller";
+import { createTicketController, deleteTicketController, getAllTicketController, getTicketAndUserController, getTicketByIdController, getTicketByUserIdController, updateTicketController } from "./ticket.controller";
 
 
 //CRUD
@@ -44,6 +44,17 @@ const TicketRoutes = (app: Express) => {
         async (req, res, next) =>{
             try {
                 await getTicketByUserIdController(req, res);
+            } catch (error: any) {
+                next(error)
+            }
+        }
+    )
+
+        //get Ticket by User ID
+    app.route("/ticket/User/:id").get(
+        async (req, res, next) =>{
+            try {
+                await getTicketAndUserController(req, res);
             } catch (error: any) {
                 next(error)
             }

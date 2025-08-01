@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import db from "../../Drizzle/db";
-import { TIUserSupportTickets, UserSupportTicketsTable } from "../../Drizzle/schema";
+import { TIUserSupportTickets, UsersTable, UserSupportTicketsTable } from "../../Drizzle/schema";
 
 
 //Ticket Table
@@ -30,12 +30,28 @@ export const getTicketByIDService = async (ticketID: number) => {
 
 // Get Ticket By User ID
 export const getTicketByUserIDService = async (userId: number) => {
-  const TicketByUserID = await db.query.UserSupportTicketsTable.findFirst({
+  const TicketByUserID = await db.query.UserSupportTicketsTable.findMany({
     where: eq(UserSupportTicketsTable.UserID, userId)
   });
   return TicketByUserID;
 };
 
+// Get Ticket By User ID with user details
+export const getTicketAndUserService = async (userId: number) => {
+  const ticketsWithUser = await db
+    .select({
+      ticket: UserSupportTicketsTable,
+      user: UsersTable,
+    })
+    .from(UserSupportTicketsTable)
+    .innerJoin(
+      UsersTable,
+      eq(UserSupportTicketsTable.UserID, UsersTable.UserID)
+    )
+    .where(eq(UserSupportTicketsTable.UserID, userId));
+
+  return ticketsWithUser;
+};
 
 
 //update a Ticket by id

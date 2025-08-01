@@ -1,7 +1,7 @@
 // API
 
 import { Request, Response } from "express";
-import { createEventService, deleteEventService, getAllEventsService, getEventByIDService, getEventByVenueIDService, updateEventService } from "./events.service";
+import { createEventService, deleteEventService, getAllEventsService, getEventByIDService, getEventsByUserIDService, getEventByVenueIDService, updateEventService } from "./events.service";
 
 
 
@@ -60,6 +60,23 @@ export const getEventByVenueIdController = async (req: Request, res: Response) =
             return res.status(400).json({message: "Invalid ID format"});
         }
         const getEventByID = await getEventByVenueIDService(id);
+        if (!getEventByID) {
+            return res.status(404).json({message: "Event not found"});
+        }
+        return res.status(200).json({data: getEventByID});
+    } catch (error: any) {
+        return res.status(500).json({error: error.message});
+    }
+}
+
+// get Event by User id controller
+export const getEventByUserIdController = async (req: Request, res: Response) => {
+    try {
+        const id  = parseInt (req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({message: "Invalid ID format"});
+        }
+        const getEventByID = await getEventsByUserIDService(id);
         if (!getEventByID) {
             return res.status(404).json({message: "Event not found"});
         }

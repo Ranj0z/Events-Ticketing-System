@@ -1,15 +1,43 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import db from "../../Drizzle/db";
-import { RSVPTable, TIRSVP } from "../../Drizzle/schema";
+import { EventsTable, RSVPTable, TIRSVP } from "../../Drizzle/schema";
 
 
 
 //Reservation Table
 //Create a new reservation
 export const createReservationService = async(newreservation :TIRSVP) => {
-    const RSVP = await db.insert(RSVPTable)
+  // 1. Create RSVP
+    const [RSVP] = await db.insert(RSVPTable)
     .values(newreservation)
     .returning();
+
+    if (!RSVP) return null;
+    
+    //Ensure EventID is defined
+    if(newreservation.EventID == null){
+      throw new Error("EventID is required to update soldTickets")
+    }
+
+    //Fetch the record of sold tickets before rsvp is made
+    const prev = await db.query.EventsTable.findFirst({
+      where: eq(EventsTable.EventID, newreservation.EventID)
+    })
+    console.log(`Sold Tickets available ${prev?.soldTickets}`);
+
+   
+    //2 Increment soldTickets for the event
+    await db.update(EventsTable)
+    .set({
+      soldTickets: sql`${EventsTable.soldTickets}+1`
+    })
+    .where(eq(EventsTable.EventID, newreservation.EventID));
+
+  // Fetch the updated soldTickets value
+  const updatedEvent = await db.query.EventsTable.findFirst({
+    where: eq(EventsTable.EventID, newreservation.EventID),
+  });
+  console.log(`Updated soldTickets: ${updatedEvent?.soldTickets}`);
 
     return RSVP;
 }
@@ -31,15 +59,15 @@ export const getReservationByRSVPIDService = async (ID: number) => {
 
 // Get reservation By EventID
 export const getReservationByEventIDService = async (ID: number) => {
-  const reservationByEventID = await db.query.RSVPTable.findFirst({
+  const reservationByEventID = await db.query.RSVPTable.findMany({
     where: eq(RSVPTable.EventID, ID)
   });
-  return reservationByEventID;
+  return [reservationByEventID];
 };
 
 // Get reservation By UserID
 export const getReservationByUserIDService = async (ID: number) => {
-  const reservationByUserID = await db.query.RSVPTable.findFirst({
+  const reservationByUserID = await db.query.RSVPTable.findMany({
     where: eq(RSVPTable.UserID, ID)
   });
   return reservationByUserID;

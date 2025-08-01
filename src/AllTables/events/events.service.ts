@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import db from "../../Drizzle/db";
-import { EventsTable, TIEvents, VenuesTable } from "../../Drizzle/schema";
+import { EventsTable, RSVPTable, TIEvents, VenuesTable } from "../../Drizzle/schema";
 
 
 
@@ -39,6 +39,27 @@ export const getEventByVenueIDService = async (venueID: number) => {
   return EventByVenueID;
 };
 
+
+//Get events bu userID
+export const getEventsByUserIDService = async (userId: number) => {
+  // Step 1: Get RSVPs for this user
+  const userRSVPs = await db
+    .select({ EventID: RSVPTable.EventID })
+    .from(RSVPTable)
+    .where(eq(RSVPTable.UserID, userId));
+
+  const eventIDs = userRSVPs.map((rsvp) => rsvp.EventID).filter((id): id is number => !!id);
+
+  if (eventIDs.length === 0) return [];
+
+  // Step 2: Get Events for those EventIDs
+  const events = await db
+    .select()
+    .from(EventsTable)
+    .where(inArray(EventsTable.EventID, eventIDs));
+
+  return events;
+};
 
 //update a Event by id
 export const updateEventService = async (eventID: number, eventsTable: Partial<TIEvents>) => {

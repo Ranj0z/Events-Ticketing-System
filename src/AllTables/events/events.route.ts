@@ -1,6 +1,6 @@
 //routing
 import { Express } from "express";
-import { createEventController, deleteEventController, getAllEventController, getEventByIdController, getEventByVenueIdController, updateEventController } from "./events.controller";
+import { createEventController, deleteEventController, getAllEventController, getEventByIdController, getEventByUserIdController, getEventByVenueIdController, updateEventController } from "./events.controller";
 
 
 //CRUD
@@ -44,6 +44,17 @@ const EventRoutes = (app: Express) => {
         async (req, res, next) =>{
             try {
                 await getEventByVenueIdController(req, res);
+            } catch (error: any) {
+                next(error)
+            }
+        }
+    )
+
+    //get Event by User ID
+    app.route("/event/user/:id").get(
+        async (req, res, next) =>{
+            try {
+                await getEventByUserIdController(req, res);
             } catch (error: any) {
                 next(error)
             }

@@ -1,7 +1,7 @@
 // API
 
 import { Request, Response } from "express";
-import { createTicketService, deleteTicketService, getAllTicketsService, getTicketByIDService, getTicketByUserIDService, updateTicketService } from "./ticket.service";
+import { createTicketService, deleteTicketService, getAllTicketsService, getTicketAndUserService, getTicketByIDService, getTicketByUserIDService, updateTicketService } from "./ticket.service";
 
 
 //Create a new Ticket
@@ -47,7 +47,7 @@ export const getTicketByIdController = async (req: Request, res: Response) => {
         if (!getTicketByID) {
             return res.status(404).json({message: "Ticket not found"});
         }
-        return res.status(200).json({message: "Customer support ticket retrieved successfully", Ticket: getTicketByID});
+        return res.status(200).json({message: "Customer support ticket retrieved successfully", Tickets: getTicketByID});
     } catch (error: any) {
         return res.status(500).json({error: error.message});
     }
@@ -62,9 +62,26 @@ export const getTicketByUserIdController = async (req: Request, res: Response) =
         }
         const getTicketByID = await getTicketByUserIDService(id);
         if (!getTicketByID) {
-            return res.status(404).json({message: "Ticket not found"});
+            return res.status(404).json({message: "User not found"});
         }
-        return res.status(200).json({message: "Customer support ticket retrieved successfully", Ticket: getTicketByID});
+        return res.status(200).json({message: "Customer support ticket retrieved successfully", Tickets: getTicketByID});
+    } catch (error: any) {
+        return res.status(500).json({error: error.message});
+    }
+}
+
+// get Ticket by userid controller
+export const getTicketAndUserController = async (req: Request, res: Response) => {
+    try {
+        const id  = parseInt (req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({message: "Invalid ID format"});
+        }
+        const getTicketByID = await getTicketAndUserService(id);
+        if (!getTicketByID) {
+            return res.status(404).json({message: "User not found"});
+        }
+        return res.status(200).json({message: "Customer support ticket retrieved successfully", Tickets: getTicketByID});
     } catch (error: any) {
         return res.status(500).json({error: error.message});
     }
