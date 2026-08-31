@@ -1,0 +1,2 @@
+ALTER TABLE "RSVP" ALTER COLUMN "RSVP_date" SET DEFAULT now();--> statement-breakpoint
+ALTER TABLE "RSVP" ALTER COLUMN "total_amount" SET DEFAULT 0;

@@ -66,9 +66,9 @@ export const RSVPTable = pgTable("RSVP", {
     lastName: varchar("last_name", { length: 50 }),
     email: varchar("email", { length: 100 }),
     phoneNumber: text("phone_number"),
-    RSVPDate: date("RSVP_date").notNull(),
+    RSVPDate: date("RSVP_date").notNull().defaultNow(),
     RSVPStatus: RSVPEnum("StatusRSVP").default('Pending'),
-    totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+    totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull().default(0),
     paid: boolean("paid").default(false).notNull(),
 }, (table) => ([
     // Every RSVP must be tied to either a registered user or a guest email
