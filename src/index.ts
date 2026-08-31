@@ -18,7 +18,7 @@ app.use(logger);
 
   app.use(cors({
     origin: '*',
-    methods: ["GET", "POST", "PUT", "DELETE"]
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE"]
   })); // 👈 Enables cross-origin requests
   app.use(express.json());
   
@@ -47,8 +47,16 @@ app.use(((err: unknown, req: Request, res: Response, next: NextFunction) => {
   next();
 }) as express.ErrorRequestHandler); // 👈 This is the key line!
 
-app.listen(8081, () => {
-  console.log('Server is running on http://localhost:8081');
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
+app.listen(8090, () => {
+  console.log('Server is running on http://localhost:8090');
 });
 
 export default app;

@@ -1,9 +1,11 @@
 import { Request, Response } from "express";
-import { createUserService, deleteUserservice, getAllUsersService, getAllUsersWithTicketsService, getUserByEmailService, getUserByIDService, updateHostToUserservice, updateUserservice, updateUserToAdminservice, updateUserToHostservice, userLoginService, verifyUserService } from "./auth.service";
+import { createUserService, deleteUserservice, getAllUsersService, getAllUsersWithTicketsService, getUserByEmailService, getUserByIDService, getUserByResetTokenService, resetPasswordService, setResetTokenService, updateHostToUserservice, updateUserservice, updateUserToAdminservice, updateUserToHostservice, userLoginService, verifyUserService } from "./auth.service";
+import { getUnlinkedGuestReservationsService } from "../rsvp/reservation.service";
 import bycrypt from "bcryptjs";
 import "dotenv/config"
 import jwt from "jsonwebtoken"
 import { sendEmail } from "../../mailer/mailer";
+import { stripSensitiveUserFields } from "../../utils/userSelectors";
 
 // create a user controller
 export const createUserController = async (req: Request, res: Response) => {
@@ -36,7 +38,12 @@ export const createUserController = async (req: Request, res: Response) => {
         } catch (emailError) {
             console.error("Failed to send registration email:", emailError);
         }
-        return res.status(201).json({ message: "User created. Verification code sent to email." })
+
+        // Any guest RSVPs made under this email before registering —
+        // frontend can prompt to link them once the account is verified/logged in
+        const unlinkedGuestRSVPs = await getUnlinkedGuestReservationsService(user.email);
+
+        return res.status(201).json({ message: "User created. Verification code sent to email.", unlinkedGuestRSVPs })
 
     } catch (error: any) {
         return res.status(500).json({ error: error.message })
@@ -122,11 +129,16 @@ export const loginUserController = async (req: Request, res: Response) => {
         //console login verification
         // console.log("User Loged in successfully")
 
-        // return the token with user info
+        // Any guest RSVPs made under this email before the account existed —
+        // frontend can prompt "link these to your account?" with the returned list
+        const unlinkedGuestRSVPs = await getUnlinkedGuestReservationsService(userExist.email);
+
+        // return the token with user info (sensitive fields stripped)
         return res.status(200).json({
             message: "Login successfull",
             token,
-            user: userExist
+            user: stripSensitiveUserFields(userExist),
+            unlinkedGuestRSVPs
         })
     } catch (error: any) {
         return res.status(500).json({ error: error.message });
@@ -198,7 +210,7 @@ export const updateUserController = async (req: Request, res: Response) => {
         if (!updatedMessage) {
             return res.status(404).json({message: "User not found!!"});
         }        
-        return res.status(200).json({message: "User updated successfully ✅", UpdatedUser: updatedMessage});
+        return res.status(200).json({message: "User updated successfully ✅", UpdatedUser: stripSensitiveUserFields(updatedMessage)});
     } catch (error: any) {
         return res.status(500).json({error: error.message});
     }
@@ -224,7 +236,7 @@ export const updateUserToHostController = async (req: Request, res: Response) =>
         if (!updatedMessage) {
             return res.status(404).json({message: "User not found!!"});
         }        
-        return res.status(200).json({message: "Host role updated successfully ✅", UpdatedUser: updatedMessage});
+        return res.status(200).json({message: "Host role updated successfully ✅", UpdatedUser: stripSensitiveUserFields(updatedMessage)});
     } catch (error: any) {
         return res.status(500).json({error: error.message});
     }
@@ -250,7 +262,7 @@ export const updateUserToAdminController = async (req: Request, res: Response) =
         if (!updatedMessage) {
             return res.status(404).json({message: "User not found!!"});
         }        
-        return res.status(200).json({message: "Host role updated successfully ✅", UpdatedUser: updatedMessage});
+        return res.status(200).json({message: "Host role updated successfully ✅", UpdatedUser: stripSensitiveUserFields(updatedMessage)});
     } catch (error: any) {
         return res.status(500).json({error: error.message});
     }
@@ -276,7 +288,7 @@ export const downgradeHostToUserController = async (req: Request, res: Response)
         if (!updatedMessage) {
             return res.status(404).json({message: "User not found!!"});
         }        
-        return res.status(200).json({message: "User role downgraded successfully ✅", UpdatedUser: updatedMessage});
+        return res.status(200).json({message: "User role downgraded successfully ✅", UpdatedUser: stripSensitiveUserFields(updatedMessage)});
     } catch (error: any) {
         return res.status(500).json({error: error.message});
     }
@@ -304,5 +316,55 @@ export const deleteUserController = async (req: Request, res: Response) => {
         return res.status(204).json({ message: "Customer deleted successfully" });
     } catch (error: any) {
         return res.status(500).json({error: error.message});
+    }
+}
+
+// Forgot password: request a reset token
+export const forgotPasswordController = async (req: Request, res: Response) => {
+    try {
+        const { email } = req.body;
+        const result = await setResetTokenService(email);
+
+        // Only email a token if the account exists, but the HTTP response is
+        // identical either way — don't let this endpoint confirm which
+        // emails are registered.
+        if (result) {
+            try {
+                await sendEmail(
+                    result.email,
+                    "Reset your password",
+                    `Hello ${result.lastName}, your password reset token is: ${result.token}`,
+                    `<div>
+                    <h2>Hello ${result.lastName},</h2>
+                    <p>Your password reset token is: <strong>${result.token}</strong></p>
+                    <p>This expires in 30 minutes. If you didn't request this, ignore this email.</p>
+                    </div>`
+                );
+            } catch (emailError) {
+                console.error("Failed to send reset email:", emailError);
+            }
+        }
+
+        return res.status(200).json({ message: "If that email is registered, a reset link has been sent." });
+    } catch (error: any) {
+        return res.status(500).json({ error: error.message });
+    }
+}
+
+// Reset password using a valid token
+export const resetPasswordController = async (req: Request, res: Response) => {
+    try {
+        const { token, newPassword } = req.body;
+        const user = await getUserByResetTokenService(token);
+        if (!user) {
+            return res.status(400).json({ message: "Invalid or expired reset token" });
+        }
+
+        const hashedPassword = await bycrypt.hashSync(newPassword, 10);
+        await resetPasswordService(user.UserID, hashedPassword);
+
+        return res.status(200).json({ message: "Password reset successfully" });
+    } catch (error: any) {
+        return res.status(500).json({ error: error.message });
     }
 }

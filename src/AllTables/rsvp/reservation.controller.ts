@@ -2,7 +2,8 @@
 
 
 import { Request, Response } from "express";
-import { createReservationService, deleteReservationService, getAllReservationsService, getReservationByEventIDService, getReservationByRSVPIDService, getReservationByUserIDService, updateReservationService } from "./reservation.service";
+import { createReservationService, deleteReservationService, getAllReservationsService, getReservationByEventIDService, getReservationByRSVPIDService, getReservationByUserIDService, linkGuestReservationsService, markReservationPaidService, markReservationUnpaidService, updateReservationService } from "./reservation.service";
+import { getUserByIDService } from "../auth/auth.service";
 
 //Create a new reservation
 export const createReservationController = async (req: Request, res: Response) =>{
@@ -136,3 +137,70 @@ export const deleteReservationController = async (req: Request, res: Response) =
     }
 }
 
+// Link chosen guest RSVPs to the authenticated user's account.
+// Body: { rsvpIDs: number[] } — the ones the user checked/selected on the frontend,
+// or every ID from the unlinked list if they hit "add all".
+export const linkGuestReservationsController = async (req: Request, res: Response) => {
+    try {
+        const userID = (req as any).user?.user_id;
+        if (!userID) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const { rsvpIDs } = req.body;
+        if (!Array.isArray(rsvpIDs) || rsvpIDs.length === 0) {
+            return res.status(400).json({ message: "rsvpIDs must be a non-empty array" });
+        }
+
+        // Look up the account's email server-side rather than trusting the client
+        const user = await getUserByIDService(userID);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const linked = await linkGuestReservationsService(userID, user.email, rsvpIDs);
+        return res.status(200).json({ message: "Reservations linked ✅", linked });
+    } catch (error: any) {
+        return res.status(500).json({ error: error.message });
+    }
+}
+
+// Manually mark an RSVP as paid (e.g. cash payment, manual reconciliation)
+export const markReservationPaidController = async (req: Request, res: Response) => {
+    try {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({ message: "Invalid ID format" });
+        }
+
+        const rsvpExisted = await getReservationByRSVPIDService(id);
+        if (!rsvpExisted) {
+            return res.status(404).json({ message: "Reservation not found!!" });
+        }
+
+        const updated = await markReservationPaidService(id);
+        return res.status(200).json({ message: "Reservation marked as paid ✅", updated });
+    } catch (error: any) {
+        return res.status(500).json({ error: error.message });
+    }
+}
+
+// Undo path — mark an RSVP back to unpaid
+export const markReservationUnpaidController = async (req: Request, res: Response) => {
+    try {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({ message: "Invalid ID format" });
+        }
+
+        const rsvpExisted = await getReservationByRSVPIDService(id);
+        if (!rsvpExisted) {
+            return res.status(404).json({ message: "Reservation not found!!" });
+        }
+
+        const updated = await markReservationUnpaidService(id);
+        return res.status(200).json({ message: "Reservation marked as unpaid ✅", updated });
+    } catch (error: any) {
+        return res.status(500).json({ error: error.message });
+    }
+}

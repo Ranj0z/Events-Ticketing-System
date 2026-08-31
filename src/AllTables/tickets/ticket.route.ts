@@ -51,7 +51,7 @@ const TicketRoutes = (app: Express) => {
     )
 
         //get Ticket by User ID
-    app.route("/ticket/User/:id").get(
+    app.route("/ticket/ticketAndUser/:id").get(
         async (req, res, next) =>{
             try {
                 await getTicketAndUserController(req, res);

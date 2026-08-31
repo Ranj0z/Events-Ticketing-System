@@ -1,7 +1,7 @@
 import { adminRoleAuth } from "../../middleware/tokensAuth"
 //routing
 import { Express } from "express";
-import { createUserController, deleteUserController, downgradeHostToUserController, getAllUsersController, getAllUsersWithTicketsController, getUserByIdController, loginUserController, updateUserController, updateUserToAdminController, updateUserToHostController, verifyUserController } from "./auth.controller";
+import { createUserController, deleteUserController, downgradeHostToUserController, forgotPasswordController, getAllUsersController, getAllUsersWithTicketsController, getUserByIdController, loginUserController, resetPasswordController, updateUserController, updateUserToAdminController, updateUserToHostController, verifyUserController } from "./auth.controller";
 
 //Auth Route
 const UserRoutes = (app: Express) => {
@@ -123,6 +123,28 @@ const UserRoutes = (app: Express) => {
         }
     );
 
+    // forgot password route
+    app.route("/auth/forgot-password").post(
+        async (req, res, next) => {
+            try {
+                await forgotPasswordController(req, res);
+            } catch (error) {
+                next(error);
+            }
+        }
+    )
+
+    // reset password route
+    app.route("/auth/reset-password").post(
+        async (req, res, next) => {
+            try {
+                await resetPasswordController(req, res);
+            } catch (error) {
+                next(error);
+            }
+        }
+    )
+
     //Delete User by ID
     app.route("/User/delete/:id").delete(
         // adminRoleAuth,
@@ -139,4 +161,3 @@ const UserRoutes = (app: Express) => {
 }
 
 export default UserRoutes;
-

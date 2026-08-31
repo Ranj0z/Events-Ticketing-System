@@ -30,6 +30,7 @@ const VenueRoutes = (app: Express) => {
     //get all Venues
     app.route("/venue/allVenues").get(
         async (req, res, next) =>{
+            console.log("VenueRoutes: get all venues route called");
             try {
                 await getAllVenueController(req, res);
             } catch (error: any) {
@@ -61,7 +62,7 @@ const VenueRoutes = (app: Express) => {
     );    
 
     //Delete Venue by ID
-    app.route("/Venue/delete/:id").delete(
+    app.route("/venue/delete/:id").delete(
         async (req, res, next) =>{
             try {
                 await deleteVenueController(req, res);

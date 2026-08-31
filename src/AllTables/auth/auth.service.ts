@@ -1,7 +1,9 @@
 // Database
 import { eq, sql } from "drizzle-orm";
+import crypto from "crypto";
 import { TIUsers, UsersTable } from "../../Drizzle/schema";
 import db from "../../Drizzle/db";
+import { SAFE_USER_COLUMNS } from "../../utils/userSelectors";
 
 //Register user
 export const createUserService = async (user: TIUsers) => {
@@ -37,13 +39,16 @@ export const userLoginService = async (user: Partial<TIUsers>) => {
 
 //Get All Existing Users
 export const getAllUsersService = async() =>{
-    const allUsers = await db.query.UsersTable.findMany();
+    const allUsers = await db.query.UsersTable.findMany({
+        columns: SAFE_USER_COLUMNS
+    });
     return allUsers;
 }
 
 // Get User with Tickets
 export const getAllUsersWithTicketsService = async () => {
     const UsersWithTickets =  await db.query.UsersTable.findMany({
+        columns: SAFE_USER_COLUMNS,
         with: {
             ticket: true
         }
@@ -54,7 +59,8 @@ export const getAllUsersWithTicketsService = async () => {
 // Get User By UserID
 export const getUserByIDService = async (ID: number) => {
   const UserByID = await db.query.UsersTable.findFirst({
-    where: eq(UsersTable.UserID, ID)
+    where: eq(UsersTable.UserID, ID),
+    columns: SAFE_USER_COLUMNS
   });
   return UserByID;
 };
@@ -108,3 +114,34 @@ export const deleteUserservice = async (ID: number) =>{
     return deletedUser;
 }
 
+// Generate + store a password reset token for a user, if that email exists.
+// Returns null when there's no match — caller stays silent about that either way.
+export const setResetTokenService = async (email: string) => {
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiry = new Date(Date.now() + 30 * 60 * 1000); // 30 min
+
+    const [updated] = await db.update(UsersTable)
+        .set({ resetToken: token, resetTokenExpiry: expiry })
+        .where(eq(UsersTable.email, email))
+        .returning({ UserID: UsersTable.UserID, email: UsersTable.email, lastName: UsersTable.lastName });
+
+    return updated ? { ...updated, token } : null;
+}
+
+// Look up a user by reset token, rejecting expired ones
+export const getUserByResetTokenService = async (token: string) => {
+    const user = await db.query.UsersTable.findFirst({
+        where: eq(UsersTable.resetToken, token)
+    });
+    if (!user || !user.resetTokenExpiry || user.resetTokenExpiry < new Date()) return null;
+    return user;
+}
+
+// Set a new (already-hashed) password and clear the reset token
+export const resetPasswordService = async (ID: number, hashedPassword: string) => {
+    const [updated] = await db.update(UsersTable)
+        .set({ password: hashedPassword, resetToken: null, resetTokenExpiry: null })
+        .where(eq(UsersTable.UserID, ID))
+        .returning();
+    return updated;
+}

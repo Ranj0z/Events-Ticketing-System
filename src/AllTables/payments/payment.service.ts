@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import db from "../../Drizzle/db";
-import { PaymentTable, TIPayment } from "../../Drizzle/schema";
+import { PaymentTable, RSVPTable, TIPayment } from "../../Drizzle/schema";
 
 
 //CRUD
@@ -11,6 +11,14 @@ export const makePaymentService = async (payment: TIPayment) => {
     .insert(PaymentTable)
     .values(payment)
     .returning();
+
+    // A payment now exists for this RSVP — mark it paid automatically.
+    // PaymentTable.RSVPID is .notNull(), so this always targets a real RSVP.
+    if (newPayment) {
+        await db.update(RSVPTable)
+            .set({ paid: true })
+            .where(eq(RSVPTable.RSVPID, newPayment.RSVPID));
+    }
 
     return newPayment;
 }

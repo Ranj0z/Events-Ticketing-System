@@ -1,5 +1,5 @@
-import {relations} from "drizzle-orm";
-import {serial, boolean, varchar, text, date, decimal, integer, pgTable, pgEnum} from "drizzle-orm/pg-core";
+import {relations, sql} from "drizzle-orm";
+import {serial, boolean, varchar, text, date, decimal, integer, pgTable, pgEnum, timestamp, check} from "drizzle-orm/pg-core";
 
 
 //Role ENUM
@@ -21,6 +21,8 @@ export const UsersTable = pgTable("user", {
     role: RoleEnum("role").default("user"),
     isVerified: boolean("is_verified").default(false),
     verificationCode: varchar("verification_code", {length: 10}),
+    resetToken: varchar("reset_token", { length: 64 }),
+    resetTokenExpiry: timestamp("reset_token_expiry"),
     image_url: varchar("image_url"),
     createdAt: date("date_created"),
     updatedAt: date("date_updated")
@@ -58,18 +60,26 @@ export const VenuesTable = pgTable("venue", {
 //RSVP Table
 export const RSVPTable = pgTable("RSVP", {
     RSVPID: serial("RSVPID").primaryKey(),
-    UserID: integer("User_id").references(() =>UsersTable.UserID,{onDelete: "cascade"}).notNull(),
-    EventID: integer("Event_id").references(() =>EventsTable.EventID ,{onDelete: "cascade"}),
+    UserID: integer("User_id").references(() =>UsersTable.UserID,{onDelete: "cascade"}), // nullable for guest RSVPs — null UserID means the guest fields below are the identity instead
+    EventID: integer("Event_id").references(() =>EventsTable.EventID ,{onDelete: "cascade"}).notNull(),
+    firstName: varchar("first_name", { length: 50 }),
+    lastName: varchar("last_name", { length: 50 }),
+    email: varchar("email", { length: 100 }),
+    phoneNumber: text("phone_number"),
     RSVPDate: date("RSVP_date").notNull(),
     RSVPStatus: RSVPEnum("StatusRSVP").default('Pending'),
     totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
-})
+    paid: boolean("paid").default(false).notNull(),
+}, (table) => ([
+    // Every RSVP must be tied to either a registered user or a guest email
+    check("rsvp_user_or_guest", sql`${table.UserID} IS NOT NULL OR ${table.email} IS NOT NULL`)
+]))
 
 //Payment Table
 export const PaymentTable = pgTable("payment", {
     PaymentID: serial("PaymentID").primaryKey(),
     RSVPID:integer("RSVP_id").references(() =>RSVPTable.RSVPID, {onDelete: "cascade"}).notNull(),
-    EventID: integer("Event_id").references(() =>EventsTable.EventID ,{onDelete: "cascade"}),
+    EventID: integer("Event_id").references(() =>EventsTable.EventID ,{onDelete: "cascade"}).notNull(),
     amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
     balance: decimal("balance", { precision: 10, scale: 2 }).notNull(),
     paymentStatus: PaymentEnum("status").default('Pending'), 
