@@ -16,6 +16,7 @@ export const createEventController = async (req: Request, res: Response) =>{
         } 
         return res.status(201).json({message: "New Event Created!!", newEvent: createEvent})            
     } catch (error: any) {
+        console.error("createEventController error:", error);
         return res.status(500).json({error: error.message})
     }
 }
@@ -30,6 +31,7 @@ export const getAllEventController = async (req: Request, res: Response) =>{
         return res.status(200).json({Events: getAllEvents});
     
     } catch (error: any) {
+        console.error("getAllEventController error:", error);
         return res.status(500).json({error: error.message})        
     }
 }
@@ -48,6 +50,7 @@ export const getEventByIdController = async (req: Request, res: Response) => {
         }
         return res.status(200).json({event: getEventByID});
     } catch (error: any) {
+        console.error("getEventByIdController error:", error);
         return res.status(500).json({error: error.message});
     }
 }
@@ -65,6 +68,7 @@ export const getEventByVenueIdController = async (req: Request, res: Response) =
         }
         return res.status(200).json({data: getEventByID});
     } catch (error: any) {
+        console.error("getEventByVenueIdController error:", error);
         return res.status(500).json({error: error.message});
     }
 }
@@ -82,6 +86,7 @@ export const getEventByUserIdController = async (req: Request, res: Response) =>
         }
         return res.status(200).json({data: getEventByID});
     } catch (error: any) {
+        console.error("getEventByUserIdController error:", error);
         return res.status(500).json({error: error.message});
     }
 }
@@ -109,6 +114,7 @@ export const updateEventController = async (req: Request, res: Response) => {
            
         return res.status(200).json({message: "Event updated successfully ✅", updated});
     } catch (error: any) {
+        console.error("updateEventController error:", error);
         return res.status(500).json({error: error.message });
     }
 }
@@ -133,8 +139,7 @@ export const deleteEventController = async (req: Request, res: Response) => {
         }
         
     } catch (error: any) {
+        console.error("deleteEventController error:", error);
         return res.status(500).json({message: "Event deleting failed"});
     }
 }
-
-
