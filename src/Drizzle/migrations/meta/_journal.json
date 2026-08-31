@@ -127,6 +127,20 @@
       "when": 1753104629180,
       "tag": "0017_fixed_marvel_zombies",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788174476474,
+      "tag": "0018_needy_moira_mactaggert",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788175072394,
+      "tag": "0019_handy_nitro",
+      "breakpoints": true
     }
   ]
 }
