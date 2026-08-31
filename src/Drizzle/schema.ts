@@ -40,7 +40,7 @@ export const EventsTable = pgTable("events", {
     time: varchar("time", { length: 50 }).notNull(),
     ticketsPrice: decimal("tickets_price", { precision: 10, scale: 2 }).notNull(),
     totalTickets: integer("total_tickets").notNull(),
-    soldTickets: integer("sold_tickets").notNull(),
+    soldTickets: integer("sold_tickets").notNull().default(0),
     image_url: varchar("Eimage_url"),
     createdAt: date("date_created").notNull(),
     updatedAt: date("date_updated")
