@@ -1,0 +1,72 @@
+1. Users Table:
+        user_id (PK), 
+        firstname,
+        lastname 
+        email (UNIQUE), 
+        password 
+        contact_phone, 
+        address, 
+        role (ENUM: 'user', 'admin', 'host', DEFAULT 'user'), 
+        created_at, 
+        updated_at.
+
+2. Events Table:
+        event_id (PK), 
+        title, 
+        description, 
+        venue_id (FK), =>VenuesTable
+        category, 
+        date, 
+        time, 
+        ticket_price, 
+        tickets_total, 
+        tickets_sold, 
+        created_at, 
+        updated_at.
+
+3. Venues Table:
+        venue_id (PK), 
+        name, 
+        address, 
+        capacity, 
+        created_at,
+
+4. Payments Table:
+        payment_id (PK), 
+        event_id (FK), =>EventsTable
+        amount, 
+        payment_status (DEFAULT 'Pending'), 
+        payment_date, 
+        payment_method, 
+        transaction_id, 
+        created_at, 
+        updated_at.
+
+5. Customer Support Tickets Table:
+        ticket_id (PK), 
+        user_id (FK), =>UsersTable
+        subject, 
+        description, 
+        statusENUM('Open', In Progress, 'Resolved', 'Closed'), 
+        created_at, 
+        updated_at.
+
+//Venue to Events Table  - one to many
+export const VenueRelations = relations(VenuesTable, ({many}) =>({
+    events: many (EventsTable)
+}))
+
+//Event to Payments Table  - one to many
+export const EventRelations = relations(EventsTable, ({many}) =>({
+    payments: many (PaymentTable)
+}))
+
+//User to Payments Table  - one to many
+export const UserPaymentRelations = relations(UsersTable, ({many}) =>({
+    payments: many (PaymentTable)
+}))
+
+//User to CustomerSupportTickets Table  - one to many
+export const UserTicketsRelations = relations(UsersTable, ({many}) =>({
+    CustomerSupportTickets: many (CustomerSupportTicketsTable)
+}))
