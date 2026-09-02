@@ -14,7 +14,7 @@ export const createReservationController = async (req: Request, res: Response) =
         if (!createReservation) {
             return res.json({message: "New RSVP not created"})
         } 
-        return res.status(201).json({message: "New RSVP Created!!", RSVP: createReservation})            
+        return res.status(201).json({message: "New RSVP Created!!", reservations: createReservation})            
     } catch (error: any) {
         return res.status(500).json({error: error.message})
     }
@@ -48,7 +48,7 @@ export const getReservationByIdController = async (req: Request, res: Response) 
         if (!getReservationByID) {
             return res.status(404).json({message: "Reservation not found"});
         }
-        return res.status(200).json({reservation: getReservationByID});
+        return res.status(200).json({reservations: getReservationByID});
     } catch (error: any) {
         return res.status(500).json({error: error.message});
     }
