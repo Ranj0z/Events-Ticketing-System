@@ -5,6 +5,7 @@ import rsvpRoutes from './AllTables/rsvp/reservation.route';
 import EventRoutes from './AllTables/events/events.route';
 import VenueRoutes from './AllTables/venues/venue.route';
 import TicketRoutes from './AllTables/tickets/ticket.route';
+import UploadRoutes from './AllTables/uploads/upload.routes';
 
 const app = express();
 import cors from "cors";
@@ -33,13 +34,14 @@ rsvpRoutes(app);
 EventRoutes(app);
 VenueRoutes(app);
 TicketRoutes(app);
+UploadRoutes(app);
 
 // Root route
 app.get('/', (req: Request, res: Response) => {
   res.send('Hello, World!');
 });
 
-// ✅ JSON syntax error handler (must be after express.json and routes)
+// ✅ Catch-all error handler (must be after express.json and routes)
 app.use(((err: unknown, req: Request, res: Response, next: NextFunction) => {
   if (
     err instanceof SyntaxError &&
@@ -48,8 +50,30 @@ app.use(((err: unknown, req: Request, res: Response, next: NextFunction) => {
   ) {
     return res.status(400).json({ message: 'Invalid JSON format' });
   }
+
+  // multer file-type/size rejections (e.g. from upload.middleware.ts)
+  if (
+    err &&
+    typeof err === 'object' &&
+    'name' in err &&
+    (err as { name?: unknown }).name === 'MulterError'
+  ) {
+    const message =
+      'message' in err && typeof (err as { message?: unknown }).message === 'string'
+        ? (err as { message: string }).message
+        : 'Invalid file upload';
+    return res.status(400).json({ message });
+  }
+
+  // any other error reaching here previously fell through silently
+  // (bare next() with no error = request hangs). Respond instead.
+  if (err) {
+    console.error('Unhandled error:', err);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+
   next();
-}) as express.ErrorRequestHandler); // 👈 This is the key line!
+}) as express.ErrorRequestHandler);
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);

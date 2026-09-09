@@ -31,6 +31,7 @@
   "packageManager": "pnpm@10.12.2",
   "devDependencies": {
     "@types/cors": "^2.8.19",
+    "@types/multer": "^2.2.0",
     "@types/jest": "^30.0.0",
     "@types/pg": "^8.15.4",
     "@types/supertest": "^6.0.3",
@@ -50,11 +51,13 @@
     "@types/nodemailer": "^6.4.17",
     "axios": "^1.11.0",
     "bcryptjs": "^3.0.2",
+    "cloudinary": "^2.11.0",
     "cors": "^2.8.5",
     "dayjs": "^1.11.13",
     "dotenv": "^17.0.0",
     "drizzle-orm": "^0.44.2",
     "express": "^5.1.0",
+    "multer": "^2.3.0",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^7.0.4",
     "pg": "^8.16.3"
