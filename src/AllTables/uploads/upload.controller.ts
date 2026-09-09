@@ -13,9 +13,9 @@ export const uploadImageController = async (req: Request, res: Response) => {
       ? req.body.folder
       : "profile";
 
-    const url = await uploadImageService(req.file.buffer, folder);
+    const { url, public_id } = await uploadImageService(req.file.buffer, folder);
 
-    return res.status(201).json({ message: "Image uploaded!!", url });
+    return res.status(201).json({ message: "Image uploaded!!", url, public_id });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

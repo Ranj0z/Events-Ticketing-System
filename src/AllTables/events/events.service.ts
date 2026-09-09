@@ -1,6 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import db from "../../Drizzle/db";
 import { EventsTable, RSVPTable, TIEvents, VenuesTable } from "../../Drizzle/schema";
+import { deleteImageService } from "../uploads/upload.service";
 
 
 
@@ -63,10 +64,22 @@ export const getEventsByUserIDService = async (userId: number) => {
 
 //update a Event by id
 export const updateEventService = async (eventID: number, eventsTable: Partial<TIEvents>) => {
+    const replacingImage = eventsTable.image_public_id !== undefined;
+    const existing = replacingImage
+        ? await db.query.EventsTable.findFirst({
+            where: eq(EventsTable.EventID, eventID),
+            columns: { image_public_id: true }
+        })
+        : null;
+
     const [updated] = await db.update(EventsTable)
         .set(eventsTable)
         .where(eq(EventsTable.EventID, eventID))
         .returning();
+
+    if (replacingImage && existing?.image_public_id && existing.image_public_id !== eventsTable.image_public_id) {
+        deleteImageService(existing.image_public_id);
+    }
 
     return updated;
   
@@ -74,10 +87,18 @@ export const updateEventService = async (eventID: number, eventsTable: Partial<T
 
 // Delete Event By ID
 export const deleteEventService = async (EventID: number) =>{
+    const existing = await db.query.EventsTable.findFirst({
+        where: eq(EventsTable.EventID, EventID),
+        columns: { image_public_id: true }
+    });
+
     const deletedEvent = await db.delete(EventsTable)
     .where(eq(EventsTable.EventID, EventID))
     .returning();
 
+    if (existing?.image_public_id) {
+        deleteImageService(existing.image_public_id);
+    }
+
   return deletedEvent;
 }
-

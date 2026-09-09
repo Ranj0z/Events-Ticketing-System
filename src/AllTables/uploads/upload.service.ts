@@ -1,9 +1,11 @@
 import cloudinary from "../../lib/cloudinary";
 
+export type UploadResult = { url: string; public_id: string };
+
 export const uploadImageService = (
   buffer: Buffer,
   folder: "profile" | "venue" | "event"
-): Promise<string> => {
+): Promise<UploadResult> => {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       {
@@ -16,9 +18,20 @@ export const uploadImageService = (
         if (error || !result) {
           return reject(error ?? new Error("Cloudinary upload failed"));
         }
-        resolve(result.secure_url);
+        resolve({ url: result.secure_url, public_id: result.public_id });
       }
     );
     stream.end(buffer);
+  });
+};
+
+// Best-effort cleanup — deletes a previously-uploaded image from Cloudinary.
+// Fire-and-forget by design: callers should not await-block their response
+// on this, and a failure here should never fail the surrounding request.
+// Only logs on failure.
+export const deleteImageService = (public_id: string | null | undefined): void => {
+  if (!public_id) return;
+  cloudinary.uploader.destroy(public_id).catch((error) => {
+    console.error(`Cloudinary cleanup failed for public_id "${public_id}":`, error);
   });
 };

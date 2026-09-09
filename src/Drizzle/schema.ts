@@ -24,6 +24,7 @@ export const UsersTable = pgTable("user", {
     resetToken: varchar("reset_token", { length: 64 }),
     resetTokenExpiry: timestamp("reset_token_expiry"),
     image_url: varchar("image_url"),
+    image_public_id: varchar("image_public_id"),
     createdAt: date("date_created"),
     updatedAt: date("date_updated")
     }
@@ -42,6 +43,7 @@ export const EventsTable = pgTable("events", {
     totalTickets: integer("total_tickets").notNull(),
     soldTickets: integer("sold_tickets").notNull().default(0),
     image_url: varchar("Eimage_url"),
+    image_public_id: varchar("Eimage_public_id"),
     createdAt: date("date_created").notNull().defaultNow(),
     updatedAt: date("date_updated")
 })
@@ -53,6 +55,7 @@ export const VenuesTable = pgTable("venue", {
     venueName: varchar("venue_name", { length: 100 }).notNull(),
     address: varchar("address", { length: 255 }).notNull(),
     image_url: varchar("Vimage_url"),
+    image_public_id: varchar("Vimage_public_id"),
     capacity: integer("capacity"),
     createdAt: date("created_at", ),
 })
@@ -125,10 +128,6 @@ export const RsvpPaymentRelations = relations(RSVPTable, ({many}) =>({
 export const UserTicketsRelations = relations(UsersTable, ({many}) =>({
     UserSupportTickets: many (UserSupportTicketsTable)
 }))
-
-
-
-
 
 export type TIUsers = typeof UsersTable.$inferInsert;
 export type TSUsers = typeof UsersTable.$inferSelect;

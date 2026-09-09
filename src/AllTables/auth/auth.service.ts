@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { TIUsers, UsersTable } from "../../Drizzle/schema";
 import db from "../../Drizzle/db";
 import { SAFE_USER_COLUMNS } from "../../utils/userSelectors";
+import { deleteImageService } from "../uploads/upload.service";
 
 //Register user
 export const createUserService = async (user: TIUsers) => {
@@ -67,11 +68,25 @@ export const getUserByIDService = async (ID: number) => {
 
 //update a User by id
 export const updateUserservice = async (ID: number, UserUpdated: Partial<TIUsers>) => {
+    // Capture the old image public_id before overwriting, so a replaced
+    // photo can be cleaned up from Cloudinary afterwards.
+    const replacingImage = UserUpdated.image_public_id !== undefined;
+    const existing = replacingImage
+        ? await db.query.UsersTable.findFirst({
+            where: eq(UsersTable.UserID, ID),
+            columns: { image_public_id: true }
+        })
+        : null;
+
     const [updated] = await db.update(UsersTable)
         .set(UserUpdated)
         .where(eq(UsersTable.UserID, ID))
         .returning();
-    
+
+    if (replacingImage && existing?.image_public_id && existing.image_public_id !== UserUpdated.image_public_id) {
+        deleteImageService(existing.image_public_id);
+    }
+
     return updated;
 }
 
@@ -109,8 +124,18 @@ export const updateHostToUserservice = async (ID: number, UserUpdated: {"role" :
 
 // Delete User By ID
 export const deleteUserservice = async (ID: number) =>{
+    const existing = await db.query.UsersTable.findFirst({
+        where: eq(UsersTable.UserID, ID),
+        columns: { image_public_id: true }
+    });
+
     const deletedUser = await db.delete(UsersTable)
         .where(sql`${UsersTable.UserID} = ${ID}`);
+
+    if (existing?.image_public_id) {
+        deleteImageService(existing.image_public_id);
+    }
+
     return deletedUser;
 }
 
