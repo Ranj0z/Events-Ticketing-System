@@ -51,7 +51,7 @@ export const getAllUsersWithTicketsService = async () => {
     const UsersWithTickets =  await db.query.UsersTable.findMany({
         columns: SAFE_USER_COLUMNS,
         with: {
-            ticket: true
+            UserSupportTickets: true
         }
     })
     return UsersWithTickets;

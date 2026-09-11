@@ -11,24 +11,33 @@ import {
   verifyGatewaySignature,
   handleGatewayWebhookService,
   PaymentAlreadyInitiatedError,
-  RsvpNotFoundError,
+  PaymentNotFoundError,
+  HoldExpiredError,
 } from "./payment.service";
 import { Request, Response } from "express";
 
-// initiate a payment for an RSVP — replaces the old direct makePaymentController
+// initiate a payment — keyed by PaymentID (a Payment covers a whole cart of
+// RSVPs, created upfront by the booking service). Replaces the old
+// RSVPID-keyed controller.
 export const initiatePaymentController = async (req: Request, res: Response) => {
   try {
-    const rsvpId = parseInt(req.params.rsvpId);
+    const paymentId = parseInt(req.params.paymentId);
     const { phoneNumber } = req.body;
-    if (isNaN(rsvpId)) return res.status(400).json({ message: "Invalid RSVP ID format" });
+    if (isNaN(paymentId)) return res.status(400).json({ message: "Invalid Payment ID format" });
     if (!phoneNumber) return res.status(400).json({ message: "phoneNumber is required" });
 
-    const result = await initiatePaymentService({ rsvpId, phoneNumber });
+    // req.user is populated by upstream auth middleware when present; the
+    // route stays open to guest checkout, so it may be undefined.
+    const userId = (req as any).user?.UserID ?? null;
+
+    const result = await initiatePaymentService({ paymentId, phoneNumber, userId });
     return res.status(201).json(result);
   } catch (error: any) {
-    if (error instanceof RsvpNotFoundError) return res.status(404).json({ message: "RSVP not found" });
+    if (error instanceof PaymentNotFoundError) return res.status(404).json({ message: "Payment not found" });
+    if (error instanceof HoldExpiredError)
+      return res.status(410).json({ message: "This booking hold has expired" });
     if (error instanceof PaymentAlreadyInitiatedError)
-      return res.status(409).json({ message: "A payment is already pending or completed for this RSVP" });
+      return res.status(409).json({ message: "A payment is already pending or completed for this booking" });
     return res.status(500).json({ error: error.message });
   }
 };

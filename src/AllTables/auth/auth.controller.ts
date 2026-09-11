@@ -11,10 +11,17 @@ import { stripSensitiveUserFields } from "../../utils/userSelectors";
 export const createUserController = async (req: Request, res: Response) => {
     try {
 
-        const user = req.body;
+        // Never trust client-supplied role/verification fields — strip them
+        // before building the insert object. Public registration always
+        // creates a "user"; role changes only happen via the admin-only
+        // promote endpoints.
+        const { role: _role, isVerified: _isVerified, verificationCode: _verificationCode, ...safeUserInput } = req.body;
+        const user: any = safeUserInput;
+
         const password = user.password;
         const hashedPassword = await bycrypt.hashSync(password, 10)
         user.password = hashedPassword
+        user.role = "user";
 
         // Generate a 6-digit verification code
         const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -107,6 +114,11 @@ export const loginUserController = async (req: Request, res: Response) => {
         const userMatch = await bycrypt.compareSync(user.password, userExist.password)
         if (!userMatch) {
             return res.status(401).json({ message: "Invalid credentials" });
+        }
+
+        // Block login until the account's email has been verified
+        if (!userExist.isVerified) {
+            return res.status(403).json({ message: "Please verify your email before logging in" });
         }
 
         // create a payload

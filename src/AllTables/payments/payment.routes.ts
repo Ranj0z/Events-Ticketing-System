@@ -10,10 +10,23 @@ import {
   gatewayWebhookController,
   getPaymentStatusController,
 } from "./payment.controller";
+import { adminRoleAuth, allRoleAuth, requireOwnerOrAdmin } from "../../middleware/tokensAuth";
+import { getPaymentByRSVPIDService } from "./payment.service";
+
+// PaymentTable now carries its own UserID (the buyer) — a buyer can pay for
+// RSVPs belonging to other users/guests, so ownership is checked against the
+// Payment row's UserID rather than the RSVP's UserID. This resolver guards
+// GET /payment/rsvp/:id, whose :id is an RSVPID, so it hops RSVP -> Payment.
+const paymentOwnerResolver = async (req: any) => {
+  const payment = await getPaymentByRSVPIDService(parseInt(req.params.id));
+  return payment?.UserID ?? null;
+}
 
 const paymentRoutes = (app: Express) => {
-  // start a payment for an RSVP (replaces the old /payment/makePayment)
-  app.route("/payments/rsvp/:rsvpId/initiate").post(
+  // start a payment (replaces the old /payment/makePayment). Keyed by
+  // PaymentID, not RSVPID — one Payment covers a whole cart of RSVPs.
+  // Stays open to guest checkout — no auth gate.
+  app.route("/payments/:paymentId/initiate").post(
     async (req, res, next) => {
       try {
         await initiatePaymentController(req, res);
@@ -47,6 +60,7 @@ const paymentRoutes = (app: Express) => {
 
   //Get all payments
   app.route("/payment/allPayment").get(
+    adminRoleAuth,
     async (req, res, next) => {
       try {
         await getAllPaymentsController(req, res);
@@ -58,6 +72,7 @@ const paymentRoutes = (app: Express) => {
 
   //get Payment by ID
   app.route("/payment/:id").get(
+    adminRoleAuth,
     async (req, res, next) => {
       try {
         await getPaymentByIdController(req, res);
@@ -69,6 +84,7 @@ const paymentRoutes = (app: Express) => {
 
   //Get Payment by eventID
   app.route("/payment/event/:id").get(
+    adminRoleAuth,
     async (req, res, next) => {
       try {
         await getPaymentByEventIDController(req, res);
@@ -80,6 +96,8 @@ const paymentRoutes = (app: Express) => {
 
   //Get Payment by rsvpID
   app.route("/payment/rsvp/:id").get(
+    allRoleAuth,
+    requireOwnerOrAdmin(paymentOwnerResolver),
     async (req, res, next) => {
       try {
         await getPaymentByRSVPIDController(req, res);
@@ -91,6 +109,7 @@ const paymentRoutes = (app: Express) => {
 
   //Delete Payment by ID
   app.route("/payment/delete/:id").delete(
+    adminRoleAuth,
     async (req, res, next) => {
       try {
         await deletePaymentController(req, res);

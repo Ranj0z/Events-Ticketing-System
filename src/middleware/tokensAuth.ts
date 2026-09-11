@@ -61,3 +61,48 @@ export const userRoleAuth = checkRoles("user")
 export const hostRoleAuth = checkRoles("host")
 export const bothHURoleAuth = checkRoles("bothHU")
 export const allRoleAuth = checkRoles("all")
+
+// Ownership-check middleware (Phase 1.2)
+// Must run AFTER a checkRoles/*RoleAuth middleware, since it relies on req.user
+// being set by that step.
+//
+// getResourceOwnerId receives the request and resolves to the UserID that
+// owns the resource being accessed (e.g. by reading req.params.id directly
+// when the id IS the user's own id, or by loading the resource and reading
+// its owner column). Return null/undefined if the resource doesn't exist.
+export const requireOwnerOrAdmin = (
+    getResourceOwnerId: (req: Request) => Promise<number | null | undefined>
+) => {
+    return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        const user = (req as any).user;
+
+        if (!user || typeof user !== "object" || !("user_id" in user)) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        // Admins can access any resource
+        if (user.role === "admin") {
+            next();
+            return;
+        }
+
+        try {
+            const ownerId = await getResourceOwnerId(req);
+
+            if (ownerId === null || ownerId === undefined || Number.isNaN(ownerId)) {
+                res.status(404).json({ message: "Resource not found" });
+                return;
+            }
+
+            if (ownerId !== user.user_id) {
+                res.status(403).json({ message: "Forbidden: you do not own this resource" });
+                return;
+            }
+
+            next();
+        } catch (error) {
+            res.status(500).json({ message: "Error checking resource ownership" });
+        }
+    }
+}

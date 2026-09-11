@@ -36,6 +36,7 @@ export const EventsTable = pgTable("events", {
     title: varchar("title", { length: 50 }).notNull(),
     description: text("description").notNull(),
     VenueID: integer("VenueID").references(() =>VenuesTable.VenueID, {onDelete: "cascade"}).notNull(),
+    HostID: integer("HostID").references(() =>UsersTable.UserID).notNull(),
     category: CategoryEnum("Category").default("Tech"),
     date: date("event_date").notNull(),
     time: varchar("time", { length: 50 }).notNull(),
@@ -46,6 +47,20 @@ export const EventsTable = pgTable("events", {
     image_public_id: varchar("Eimage_public_id"),
     createdAt: date("date_created").notNull().defaultNow(),
     updatedAt: date("date_updated")
+})
+
+
+//Ticket Type Table
+export const TicketTypeTable = pgTable("ticket_type", {
+    TicketTypeID: serial("TicketTypeID").primaryKey(),
+    EventID: integer("Event_id").references(() =>EventsTable.EventID, {onDelete: "cascade"}).notNull(),
+    name: varchar("name", { length: 50 }).notNull(),
+    price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+    totalQuantity: integer("total_quantity").notNull(),
+    soldQuantity: integer("sold_quantity").notNull().default(0),
+    description: text("description"),
+    createdAt: date("date_created").notNull().defaultNow(),
+    updatedAt: date("date_updated"),
 })
 
 
@@ -65,6 +80,7 @@ export const RSVPTable = pgTable("RSVP", {
     RSVPID: serial("RSVPID").primaryKey(),
     UserID: integer("User_id").references(() =>UsersTable.UserID,{onDelete: "cascade"}), // nullable for guest RSVPs — null UserID means the guest fields below are the identity instead
     EventID: integer("Event_id").references(() =>EventsTable.EventID ,{onDelete: "cascade"}).notNull(),
+    TicketTypeID: integer("TicketType_id").references(() =>TicketTypeTable.TicketTypeID).notNull(), // not nullable because every RSVP must be tied to a ticket type
     firstName: varchar("first_name", { length: 50 }),
     lastName: varchar("last_name", { length: 50 }),
     email: varchar("email", { length: 100 }),
@@ -73,6 +89,12 @@ export const RSVPTable = pgTable("RSVP", {
     RSVPStatus: RSVPEnum("StatusRSVP").default('Pending'),
     totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull().default("0"),
     paid: boolean("paid").default(false).notNull(),
+    checkInCode: varchar("check_in_code", { length: 100 }).unique(), // QR payload, set at booking time
+    checkedIn: boolean("checked_in").default(false).notNull(),
+    checkedInAt: timestamp("checked_in_at"),
+    checkedInBy: integer("checked_in_by").references(() =>UsersTable.UserID), // staff/host who scanned
+    holdExpiresAt: timestamp("hold_expires_at"), // drives the unpaid-hold sweep job
+    PaymentID: integer("Payment_id").references(() =>PaymentTable.PaymentID), // nullable: set once a Payment is created for this RSVP's batch; null for free ($0) tickets, which never get a Payment row
 }, (table) => ([
     // Every RSVP must be tied to either a registered user or a guest email
     check("rsvp_user_or_guest", sql`${table.UserID} IS NOT NULL OR ${table.email} IS NOT NULL`)
@@ -81,8 +103,9 @@ export const RSVPTable = pgTable("RSVP", {
 //Payment Table
 export const PaymentTable = pgTable("payment", {
     PaymentID: serial("PaymentID").primaryKey(),
-    RSVPID:integer("RSVP_id").references(() =>RSVPTable.RSVPID, {onDelete: "cascade"}).notNull(),
     EventID: integer("Event_id").references(() =>EventsTable.EventID ,{onDelete: "cascade"}).notNull(),
+    UserID: integer("User_id").references(() =>UsersTable.UserID, {onDelete: "set null"}), // nullable — the buyer; null for guest checkout. Buyer may differ from the RSVP attendees.
+    phoneNumber: text("phone_number"), // buyer's phone, captured at initiate time (raw, unnormalized)
     amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
     paymentStatus: PaymentEnum("status").default('Pending'),
     paymentDate: date("payment_date").notNull().defaultNow(),
@@ -109,9 +132,10 @@ export const VenueRelations = relations(VenuesTable, ({many}) =>({
     events: many (EventsTable)
 }))
 
-//Event to RSVP Table  - one to many
+//Event to RSVP Table, Event to TicketType Table  - one to many
 export const EventRelations = relations(EventsTable, ({many}) =>({
-    RSVP: many(RSVPTable)    
+    RSVP: many(RSVPTable),
+    TicketTypes: many(TicketTypeTable)
 }))
 
 //User to RSVP Table  - one to many
@@ -119,9 +143,27 @@ export const UserRSVPRelations = relations(UsersTable, ({many}) =>({
     RSVP: many(RSVPTable)
 }))
 
-//Rsvp to Payments Table  - one to many
-export const RsvpPaymentRelations = relations(RSVPTable, ({many}) =>({
-    payments: many (PaymentTable),
+//Payment to RSVP Table - one to many (one Payment covers many RSVPs in a single checkout)
+//Payment to User Table - many to one (the buyer; null for guest checkout)
+export const PaymentRSVPRelations = relations(PaymentTable, ({many, one}) =>({
+    RSVP: many(RSVPTable),
+    buyer: one(UsersTable, {
+        fields: [PaymentTable.UserID],
+        references: [UsersTable.UserID],
+    }),
+}))
+
+//User to Payment Table - one to many (payments the user has made as buyer)
+export const UserPaymentRelations = relations(UsersTable, ({many}) =>({
+    Payments: many(PaymentTable)
+}))
+
+//RSVP to Payment Table - many to one (each RSVP optionally belongs to one Payment; null for free tickets)
+export const RsvpPaymentRelations = relations(RSVPTable, ({one}) =>({
+    payment: one(PaymentTable, {
+        fields: [RSVPTable.PaymentID],
+        references: [PaymentTable.PaymentID],
+    }),
 }))
 
 //User to UserSupportTickets Table  - one to many
@@ -139,6 +181,8 @@ export type TIRSVP = typeof RSVPTable.$inferInsert;
 export type TSRSVP = typeof RSVPTable.$inferSelect;
 export type TIEvents = typeof EventsTable.$inferInsert;
 export type TSEvents = typeof EventsTable.$inferSelect;
+export type TITicketType = typeof TicketTypeTable.$inferInsert;
+export type TSTicketType = typeof TicketTypeTable.$inferSelect;
 export type TIVenues = typeof VenuesTable.$inferInsert;
 export type TSVenues = typeof VenuesTable.$inferSelect;
 export type TSUserLoginInput = {

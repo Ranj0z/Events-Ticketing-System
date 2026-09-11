@@ -41,8 +41,9 @@ export const getEventByVenueIDService = async (venueID: number) => {
 };
 
 
-//Get events bu userID
-export const getEventsByUserIDService = async (userId: number) => {
+//Get events attended by a user (via their RSVPs) — distinct from
+//getEventsByHostIDService below, which is about events a host *organizes*.
+export const getEventsAttendedByUserIDService = async (userId: number) => {
   // Step 1: Get RSVPs for this user
   const userRSVPs = await db
     .select({ EventID: RSVPTable.EventID })
@@ -59,6 +60,14 @@ export const getEventsByUserIDService = async (userId: number) => {
     .from(EventsTable)
     .where(inArray(EventsTable.EventID, eventIDs));
 
+  return events;
+};
+
+//Get events organized by a host
+export const getEventsByHostIDService = async (hostId: number) => {
+  const events = await db.query.EventsTable.findMany({
+    where: eq(EventsTable.HostID, hostId)
+  });
   return events;
 };
 

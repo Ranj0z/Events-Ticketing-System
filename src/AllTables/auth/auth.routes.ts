@@ -1,4 +1,4 @@
-import { adminRoleAuth } from "../../middleware/tokensAuth"
+import { adminRoleAuth, allRoleAuth, requireOwnerOrAdmin } from "../../middleware/tokensAuth"
 //routing
 import { Express } from "express";
 import { createUserController, deleteUserController, downgradeHostToUserController, forgotPasswordController, getAllUsersController, getAllUsersWithTicketsController, getUserByIdController, loginUserController, resetPasswordController, updateUserController, updateUserToAdminController, updateUserToHostController, verifyUserController } from "./auth.controller";
@@ -23,7 +23,7 @@ const UserRoutes = (app: Express) => {
             try {
                 await loginUserController(req, res)
             } catch (error) {
-                next()
+                next(error);
             }
         }
     )
@@ -41,8 +41,7 @@ const UserRoutes = (app: Express) => {
 
     //Get all Users
     app.route("/User/allUsers").get(
-        // isAuthenticated,
-        // adminRoleAuth, // Both users and admins can access this.
+        adminRoleAuth,
         async (req, res, next) =>{
             try {
                 await getAllUsersController(req, res);
@@ -55,7 +54,8 @@ const UserRoutes = (app: Express) => {
 
     //get User by ID
     app.route("/User/:id").get(
-        // userRoleAuth,
+        allRoleAuth,
+        requireOwnerOrAdmin(async (req) => parseInt(req.params.id)),
         async (req, res, next) =>{
             try {
                 await getUserByIdController(req, res);
@@ -67,8 +67,7 @@ const UserRoutes = (app: Express) => {
  
     //Get all Userswith Tickets
     app.route("/User/allUsersWithTickets").get(
-        // isAuthenticated,
-        // adminRoleAuth, // Both users and admins can access this.
+        adminRoleAuth,
         async (req, res, next) =>{
             try {
                 await getAllUsersWithTicketsController(req, res);
@@ -81,6 +80,8 @@ const UserRoutes = (app: Express) => {
    
     //update User by id
     app.route("/User/update/:id").patch(
+        allRoleAuth,
+        requireOwnerOrAdmin(async (req) => parseInt(req.params.id)),
         async (req, res, next) => {
             try {
                 await updateUserController(req, res);
@@ -92,6 +93,7 @@ const UserRoutes = (app: Express) => {
 
     //update User to host by id
     app.route("/User/updatetohost/:id").patch(
+        adminRoleAuth,
         async (req, res, next) => {
             try {
                 await updateUserToHostController(req, res);
@@ -103,6 +105,7 @@ const UserRoutes = (app: Express) => {
 
     //update User to admin by id
     app.route("/User/updatetoadmin/:id").patch(
+        adminRoleAuth,
         async (req, res, next) => {
             try {
                 await updateUserToAdminController(req, res);
@@ -114,6 +117,7 @@ const UserRoutes = (app: Express) => {
 
     //update host to User by id
     app.route("/User/downgradetouser/:id").patch(
+        adminRoleAuth,
         async (req, res, next) => {
             try {
                 await downgradeHostToUserController(req, res);
@@ -147,7 +151,7 @@ const UserRoutes = (app: Express) => {
 
     //Delete User by ID
     app.route("/User/delete/:id").delete(
-        // adminRoleAuth,
+        adminRoleAuth,
         async (req, res, next) =>{
             try {
                 await deleteUserController(req, res);

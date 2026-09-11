@@ -1,13 +1,23 @@
 //routing
 import { Express } from "express";
-import { createEventController, deleteEventController, getAllEventController, getEventByIdController, getEventByUserIdController, getEventByVenueIdController, updateEventController } from "./events.controller";
+import { createEventController, deleteEventController, getAllEventController, getEventByIdController, getEventsAttendedByUserIdController, getEventsByHostIdController, getEventByVenueIdController, updateEventController } from "./events.controller";
+import { bothHURoleAuth, requireOwnerOrAdmin } from "../../middleware/tokensAuth";
+import { getEventByIDService } from "./events.service";
 
+// Phase 2.1: EventsTable now has HostID, so the ownership check deferred in
+// Phase 1 is wired in below — a host token can only update/delete an event
+// where HostID matches their own user id; admins can touch any event.
+const eventOwnerResolver = async (req: any) => {
+    const event = await getEventByIDService(parseInt(req.params.id));
+    return event?.HostID ?? null;
+}
 
 //CRUD
 const EventRoutes = (app: Express) => {
     //route
     //Add new Event
     app.route("/event/newevent").post(
+        bothHURoleAuth,
         async (req, res, next) =>{
             try {
                 await createEventController(req, res);
@@ -50,11 +60,22 @@ const EventRoutes = (app: Express) => {
         }
     )
 
-    //get Event by User ID
+    //get Event by User ID (events the user has RSVP'd to / attended)
     app.route("/event/user/:id").get(
         async (req, res, next) =>{
             try {
-                await getEventByUserIdController(req, res);
+                await getEventsAttendedByUserIdController(req, res);
+            } catch (error: any) {
+                next(error)
+            }
+        }
+    )
+
+    //get Events by Host ID (events the host organizes)
+    app.route("/event/host/:id").get(
+        async (req, res, next) =>{
+            try {
+                await getEventsByHostIdController(req, res);
             } catch (error: any) {
                 next(error)
             }
@@ -63,6 +84,8 @@ const EventRoutes = (app: Express) => {
     
     //update Event by id
     app.route("/event/update/:id").patch(
+        bothHURoleAuth,
+        requireOwnerOrAdmin(eventOwnerResolver),
         async (req, res, next) => {
             try {
                 await updateEventController(req, res);
@@ -74,6 +97,8 @@ const EventRoutes = (app: Express) => {
 
     //Delete Event by ID
     app.route("/event/delete/:id").delete(
+        bothHURoleAuth,
+        requireOwnerOrAdmin(eventOwnerResolver),
         async (req, res, next) =>{
             try {
                 await deleteEventController(req, res);

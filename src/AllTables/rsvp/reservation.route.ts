@@ -1,12 +1,18 @@
 //routing
 import { Express } from "express";
 import { createReservationController, deleteReservationController, getAllReservationsController, getReservationByEventIDController, getReservationByIdController, getReservationByUserIDController, linkGuestReservationsController, markReservationPaidController, markReservationUnpaidController, updateReservationController } from "./reservation.controller";
-import { allRoleAuth } from "../../middleware/tokensAuth";
+import { adminRoleAuth, allRoleAuth, requireOwnerOrAdmin } from "../../middleware/tokensAuth";
+import { getReservationByRSVPIDService } from "./reservation.service";
 
+// Ownership resolver for an RSVP accessed by its own RSVPID
+const rsvpOwnerResolver = async (req: any) => {
+    const reservation = await getReservationByRSVPIDService(parseInt(req.params.id));
+    return reservation?.UserID ?? null;
+}
 
 //CRUD
 const rsvpRoutes = (app: Express) => {
-    //route
+    // Create reservation(s) — body: { UserID?, cart: [{ TicketTypeID, quantity, attendees: [...] }] }
     app.route("/reservation/newRsvp").post(
         async (req, res, next) =>{
             try {
@@ -19,6 +25,7 @@ const rsvpRoutes = (app: Express) => {
 
     //get all Reservation
     app.route("/reservation/allRsvps").get(
+        adminRoleAuth,
         async (req, res, next) =>{
             try {
                 await getAllReservationsController(req, res);
@@ -30,6 +37,8 @@ const rsvpRoutes = (app: Express) => {
 
     //get reservation by ID
     app.route("/reservation/:id").get(
+        allRoleAuth,
+        requireOwnerOrAdmin(rsvpOwnerResolver),
         async (req, res, next) =>{
             try {
                 await getReservationByIdController(req, res);
@@ -50,6 +59,8 @@ const rsvpRoutes = (app: Express) => {
     )
     //get reservation by UserID
     app.route("/reservation/user/:id").get(
+        allRoleAuth,
+        requireOwnerOrAdmin(async (req) => parseInt(req.params.id)),
         async (req, res, next) =>{
             try {
                 await getReservationByUserIDController(req, res);
@@ -61,6 +72,8 @@ const rsvpRoutes = (app: Express) => {
     
     //update reservation by id
     app.route("/reservation/update/:id").patch(
+        allRoleAuth,
+        requireOwnerOrAdmin(rsvpOwnerResolver),
         async (req, res, next) => {
             try {
                 await updateReservationController(req, res);
@@ -72,6 +85,8 @@ const rsvpRoutes = (app: Express) => {
 
     //Delete Reservation by ID
     app.route("/reservation/delete/:id").delete(
+        allRoleAuth,
+        requireOwnerOrAdmin(rsvpOwnerResolver),
         async (req, res, next) =>{
             try {
                 await deleteReservationController(req, res);
@@ -95,6 +110,7 @@ const rsvpRoutes = (app: Express) => {
 
     // Manually mark an RSVP as paid
     app.route("/reservation/markpaid/:id").patch(
+        adminRoleAuth,
         async (req, res, next) =>{
             try {
                 await markReservationPaidController(req, res);
@@ -106,6 +122,7 @@ const rsvpRoutes = (app: Express) => {
 
     // Undo path — mark an RSVP back to unpaid
     app.route("/reservation/markunpaid/:id").patch(
+        adminRoleAuth,
         async (req, res, next) =>{
             try {
                 await markReservationUnpaidController(req, res);

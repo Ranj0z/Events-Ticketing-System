@@ -1,14 +1,18 @@
 // API
 
 import { Request, Response } from "express";
-import { createEventService, deleteEventService, getAllEventsService, getEventByIDService, getEventsByUserIDService, getEventByVenueIDService, updateEventService } from "./events.service";
+import { createEventService, deleteEventService, getAllEventsService, getEventByIDService, getEventsAttendedByUserIDService, getEventsByHostIDService, getEventByVenueIDService, updateEventService } from "./events.service";
 
 
 
 //Create a new Event
 export const createEventController = async (req: Request, res: Response) =>{
     try {
-        const newEvent = req.body;
+        // Never trust a client-supplied HostID — the event's host is always
+        // the authenticated user creating it.
+        const { HostID: _clientHostID, ...eventInput } = req.body;
+        const user = (req as any).user;
+        const newEvent = { ...eventInput, HostID: user?.user_id };
 
         const createEvent = await createEventService(newEvent)
         if (!createEvent) {
@@ -73,20 +77,38 @@ export const getEventByVenueIdController = async (req: Request, res: Response) =
     }
 }
 
-// get Event by User id controller
-export const getEventByUserIdController = async (req: Request, res: Response) => {
+// get events a user has RSVP'd to (attended/booked), by user id controller
+export const getEventsAttendedByUserIdController = async (req: Request, res: Response) => {
     try {
         const id  = parseInt (req.params.id);
         if (isNaN(id)) {
             return res.status(400).json({message: "Invalid ID format"});
         }
-        const getEventByID = await getEventsByUserIDService(id);
+        const getEventByID = await getEventsAttendedByUserIDService(id);
         if (!getEventByID) {
             return res.status(404).json({message: "Event not found"});
         }
         return res.status(200).json({data: getEventByID});
     } catch (error: any) {
-        console.error("getEventByUserIdController error:", error);
+        console.error("getEventsAttendedByUserIdController error:", error);
+        return res.status(500).json({error: error.message});
+    }
+}
+
+// get events a host organizes, by host (user) id controller
+export const getEventsByHostIdController = async (req: Request, res: Response) => {
+    try {
+        const id  = parseInt (req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({message: "Invalid ID format"});
+        }
+        const events = await getEventsByHostIDService(id);
+        if (!events) {
+            return res.status(404).json({message: "Event not found"});
+        }
+        return res.status(200).json({data: events});
+    } catch (error: any) {
+        console.error("getEventsByHostIdController error:", error);
         return res.status(500).json({error: error.message});
     }
 }

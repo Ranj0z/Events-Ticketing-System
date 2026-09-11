@@ -1,4 +1,4 @@
-import { eq, and, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import db from "../../Drizzle/db";
 import { PaymentTable, RSVPTable } from "../../Drizzle/schema";
@@ -29,9 +29,12 @@ export const getPaymentByEventIDService = async (ID: number) => {
   return db.query.PaymentTable.findFirst({ where: eq(PaymentTable.EventID, ID) });
 };
 
-// Get payment By RSVPID
+// Get payment By RSVPID — Payment no longer has a direct RSVPID column
+// (a Payment covers many RSVPs), so this hops RSVP -> PaymentID -> Payment.
 export const getPaymentByRSVPIDService = async (ID: number) => {
-  return db.query.PaymentTable.findFirst({ where: eq(PaymentTable.RSVPID, ID) });
+  const rsvp = await db.query.RSVPTable.findFirst({ where: eq(RSVPTable.RSVPID, ID) });
+  if (!rsvp?.PaymentID) return null;
+  return getPaymentByIDService(rsvp.PaymentID);
 };
 
 // Delete Payment By ID
@@ -47,58 +50,71 @@ export const getPaymentStatusService = async (paymentId: number) => {
 };
 
 export class PaymentAlreadyInitiatedError extends Error {}
-export class RsvpNotFoundError extends Error {}
+export class PaymentNotFoundError extends Error {}
+export class HoldExpiredError extends Error {}
 
-// Starts a payment: creates the Pending row, calls the gateway, stores the
-// CheckoutRequestID (returned synchronously) on the same row.
+// Starts a payment for an existing Payment row (created upfront by the
+// booking service — see reservation.service L4). Keyed by PaymentID, not
+// RSVPID, since one Payment can cover many RSVPs from one checkout.
 export const initiatePaymentService = async ({
-  rsvpId,
+  paymentId,
   phoneNumber,
+  userId,
 }: {
-  rsvpId: number;
+  paymentId: number;
   phoneNumber: string;
+  userId?: number | null;
 }) => {
-  const rsvp = await db.query.RSVPTable.findFirst({ where: eq(RSVPTable.RSVPID, rsvpId) });
-  if (!rsvp) throw new RsvpNotFoundError();
+  const payment = await getPaymentByIDService(paymentId);
+  if (!payment) throw new PaymentNotFoundError();
 
-  const existing = await db.query.PaymentTable.findFirst({
-    where: and(eq(PaymentTable.RSVPID, rsvpId), inArray(PaymentTable.paymentStatus, ["Pending", "Completed"])),
-  });
-  if (existing) throw new PaymentAlreadyInitiatedError();
+  // holdExpiresAt lives on RSVPTable, not Payment — all RSVPs in a batch
+  // share the same value (set together at creation), so any one row tells us.
+  const rsvp = await db.query.RSVPTable.findFirst({ where: eq(RSVPTable.PaymentID, paymentId) });
+  if (rsvp?.holdExpiresAt && new Date(rsvp.holdExpiresAt) < new Date()) {
+    throw new HoldExpiredError();
+  }
 
-  const amount = Number(rsvp.totalAmount);
+  // Idempotency: a Pending row already exists by the time /initiate is
+  // called (created in L4), so "Pending" alone doesn't mean "not yet
+  // initiated". gatewayReference is only set once the gateway call actually
+  // fires, so that's the true in-flight signal.
+  if (payment.paymentStatus === "Completed") {
+    throw new PaymentAlreadyInitiatedError();
+  }
+  if (payment.paymentStatus === "Pending" && payment.gatewayReference) {
+    throw new PaymentAlreadyInitiatedError();
+  }
+  // paymentStatus === "Failed" falls through and retries below.
 
-  const [payment] = await db
-    .insert(PaymentTable)
-    .values({
-      RSVPID: rsvpId,
-      EventID: rsvp.EventID,
-      amount: String(amount),
-      paymentStatus: "Pending",
-    })
-    .returning();
+  const amount = Number(payment.amount);
+
+  await db
+    .update(PaymentTable)
+    .set({ UserID: userId ?? null, phoneNumber, paymentStatus: "Pending" })
+    .where(eq(PaymentTable.PaymentID, paymentId));
 
   try {
     const { CheckoutRequestID } = await initiateGatewayStkPush({
       phone: normalizePhoneNumber(phoneNumber),
       amount,
-      orderRef: String(rsvpId),
+      orderRef: String(paymentId),
     });
 
     await db
       .update(PaymentTable)
       .set({ gatewayReference: CheckoutRequestID })
-      .where(eq(PaymentTable.PaymentID, payment.PaymentID));
+      .where(eq(PaymentTable.PaymentID, paymentId));
 
-    return { paymentId: payment.PaymentID };
+    return { paymentId };
   } catch (error) {
     // Gateway call failed synchronously (not retried by the gateway) — don't
-    // leave an orphaned Pending row with no gatewayReference; it would block
-    // the idempotency check above on every retry.
+    // leave a Pending row with a stale/no gatewayReference; it would block
+    // retries against the idempotency check above.
     await db
       .update(PaymentTable)
-      .set({ paymentStatus: "Failed" })
-      .where(eq(PaymentTable.PaymentID, payment.PaymentID));
+      .set({ paymentStatus: "Failed", gatewayReference: null })
+      .where(eq(PaymentTable.PaymentID, paymentId));
     throw error;
   }
 };
@@ -138,7 +154,13 @@ export const handleGatewayWebhookService = async (payload: {
       })
       .where(eq(PaymentTable.PaymentID, payment.PaymentID));
 
-    await markReservationPaidService(payment.RSVPID);
+    // Payment.RSVPID no longer exists — a Payment can cover many RSVPs, so
+    // mark every RSVP in the batch paid. (Capacity release on the failure
+    // branch below is W2, tracked separately — not covered here.)
+    const rsvps = await db.query.RSVPTable.findMany({ where: eq(RSVPTable.PaymentID, payment.PaymentID) });
+    for (const r of rsvps) {
+      await markReservationPaidService(r.RSVPID);
+    }
   } else {
     await db
       .update(PaymentTable)
