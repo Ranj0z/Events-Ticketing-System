@@ -4,7 +4,7 @@ import { Request, Response, NextFunction } from "express";
 
 
 // Impelementing a middleware to check user roles
-export const checkRoles = (requiredRole: "admin" | "user" | "bothHU" | "all" | "host") => {
+export const checkRoles = (requiredRole: "admin" | "user" | "bothHU" | "bothHA" | "all" | "host") => {
     return (req: Request, res: Response, next: NextFunction): void => {
         const authHeader = req.headers.authorization;
 
@@ -37,6 +37,12 @@ export const checkRoles = (requiredRole: "admin" | "user" | "bothHU" | "all" | "
                         return;
                     }
                 } // if the required role is bothHU, then allow access to host and user
+                else if(requiredRole === "bothHA") {
+                    if (decoded.role === "host" || decoded.role === "admin" ) { // if the decoded role is host or admin, then allow access
+                        next();
+                        return;
+                    }
+                } // if the required role is bothHA, then allow access to host and admin
                 else if (decoded.role === requiredRole) { // if the decoded role is the same as the required role, then allow access
                     next();
                     return;
@@ -60,6 +66,7 @@ export const adminRoleAuth = checkRoles("admin")
 export const userRoleAuth = checkRoles("user")
 export const hostRoleAuth = checkRoles("host")
 export const bothHURoleAuth = checkRoles("bothHU")
+export const bothHARoleAuth = checkRoles("bothHA")
 export const allRoleAuth = checkRoles("all")
 
 // Ownership-check middleware (Phase 1.2)

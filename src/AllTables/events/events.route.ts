@@ -1,7 +1,7 @@
 //routing
 import { Express } from "express";
 import { createEventController, deleteEventController, getAllEventController, getEventByIdController, getEventsAttendedByUserIdController, getEventsByHostIdController, getEventByVenueIdController, updateEventController } from "./events.controller";
-import { bothHURoleAuth, requireOwnerOrAdmin } from "../../middleware/tokensAuth";
+import { bothHARoleAuth, requireOwnerOrAdmin } from "../../middleware/tokensAuth";
 import { getEventByIDService } from "./events.service";
 
 // Phase 2.1: EventsTable now has HostID, so the ownership check deferred in
@@ -17,7 +17,7 @@ const EventRoutes = (app: Express) => {
     //route
     //Add new Event
     app.route("/event/newevent").post(
-        bothHURoleAuth,
+        bothHARoleAuth,
         async (req, res, next) =>{
             try {
                 await createEventController(req, res);
@@ -84,7 +84,7 @@ const EventRoutes = (app: Express) => {
     
     //update Event by id
     app.route("/event/update/:id").patch(
-        bothHURoleAuth,
+        bothHARoleAuth,
         requireOwnerOrAdmin(eventOwnerResolver),
         async (req, res, next) => {
             try {
@@ -97,7 +97,7 @@ const EventRoutes = (app: Express) => {
 
     //Delete Event by ID
     app.route("/event/delete/:id").delete(
-        bothHURoleAuth,
+        bothHARoleAuth,
         requireOwnerOrAdmin(eventOwnerResolver),
         async (req, res, next) =>{
             try {
