@@ -1,16 +1,18 @@
 import "dotenv/config";
-// import { drizzle } from "drizzle-orm/node-postgres"
-import { drizzle } from "drizzle-orm/neon-http"
-// import { Client } from "pg";
+import { drizzle } from "drizzle-orm/neon-serverless"
 import * as schema from "./schema"
-import { neon } from "@neondatabase/serverless";
+import { Pool, neonConfig } from "@neondatabase/serverless";
+import ws from "ws";
 
+// Render runs plain Node.js, not an edge/serverless runtime that ships a
+// global WebSocket — @neondatabase/serverless needs one supplied explicitly
+// for the Pool (transaction-capable) client to open its socket connection.
+neonConfig.webSocketConstructor = ws;
 
-export const client = neon(process.env.DATABASE_URL!)
+export const client = new Pool({ connectionString: process.env.DATABASE_URL! })
 
 const db = drizzle(client, { schema, logger: false });
-export default db;
-
+export default db;
 
 
 
