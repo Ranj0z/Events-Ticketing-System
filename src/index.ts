@@ -6,6 +6,7 @@ import EventRoutes from './AllTables/events/events.route';
 import VenueRoutes from './AllTables/venues/venue.route';
 import TicketRoutes from './AllTables/tickets/ticket.route';
 import UploadRoutes from './AllTables/uploads/upload.routes';
+import TicketTypeRoutes from './AllTables/ticket_type/ticket-type.routes';
 
 const app = express();
 import cors from "cors";
@@ -35,6 +36,7 @@ EventRoutes(app);
 VenueRoutes(app);
 TicketRoutes(app);
 UploadRoutes(app);
+TicketTypeRoutes(app);
 
 // Root route
 app.get('/', (req: Request, res: Response) => {
