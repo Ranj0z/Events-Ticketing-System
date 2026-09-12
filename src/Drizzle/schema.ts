@@ -8,6 +8,7 @@ export const PaymentEnum = pgEnum("Paymentstatus", ["Pending", "Completed", "Fai
 export const StatusEnum = pgEnum("status", ["Pending", "In Progress", "Closed"]);
 export const CategoryEnum = pgEnum("Category", ["Tech", "Data Science", "Web Dev"]);
 export const RSVPEnum = pgEnum("RSVPstatus", ["Pending", "Booked", "Cancelled"]);
+export const TicketKindEnum = pgEnum("ticket_kind", ["individual", "group"]);
 
 //Users Table 
 export const UsersTable = pgTable("user", {
@@ -55,6 +56,8 @@ export const TicketTypeTable = pgTable("ticket_type", {
     TicketTypeID: serial("TicketTypeID").primaryKey(),
     EventID: integer("Event_id").references(() =>EventsTable.EventID, {onDelete: "cascade"}).notNull(),
     name: varchar("name", { length: 50 }).notNull(),
+    type: TicketKindEnum("type").notNull().default("individual"),
+    groupSize: integer("group_size"), // nullable — only set when type = "group"
     price: decimal("price", { precision: 10, scale: 2 }).notNull(),
     totalQuantity: integer("total_quantity").notNull(),
     soldQuantity: integer("sold_quantity").notNull().default(0),

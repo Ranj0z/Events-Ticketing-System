@@ -1,18 +1,91 @@
 import { eq, inArray } from "drizzle-orm";
 import db from "../../Drizzle/db";
-import { EventsTable, RSVPTable, TIEvents, VenuesTable } from "../../Drizzle/schema";
+import { EventsTable, RSVPTable, TicketTypeTable, TIEvents, TITicketType, VenuesTable } from "../../Drizzle/schema";
 import { deleteImageService } from "../uploads/upload.service";
 
+export type TicketTypeInput = {
+  name: string;
+  type?: "individual" | "group";
+  groupSize?: number | null;
+  price: number;
+  totalQuantity: number;
+  description?: string;
+};
 
+export type CreateEventInput = Omit<TIEvents, "ticketsPrice" | "totalTickets"> & {
+  ticketTypes: TicketTypeInput[];
+};
+
+// Validates one ticketTypes[] row. Returns a reason string if invalid, null if valid.
+const validateTicketTypeInput = (t: TicketTypeInput): string | null => {
+  if (!t.name || typeof t.name !== "string") return "name is required";
+
+  const kind = t.type ?? "individual";
+  if (kind !== "individual" && kind !== "group") return "type must be 'individual' or 'group'";
+
+  if (typeof t.price !== "number" || t.price < 0) return "price must be a number >= 0";
+  if (typeof t.totalQuantity !== "number" || t.totalQuantity < 0) return "totalQuantity must be a number >= 0";
+
+  if (kind === "group") {
+    if (t.groupSize === undefined || t.groupSize === null || t.groupSize <= 0) {
+      return "groupSize is required and must be > 0 for group ticket types";
+    }
+  } else if (t.groupSize !== undefined && t.groupSize !== null) {
+    return "groupSize must not be set for individual ticket types";
+  }
+
+  return null;
+};
 
 //Event Table
 // events.service.ts
-export const createEventService = async (newEvent: TIEvents) => {
-  const [created] = await db
-  .insert(EventsTable)
-  .values(newEvent)
-  .returning();
-  return created;                 // now you have EventID, VenueID, etc.
+// Creates an Event together with its ticket_type tiers in one atomic operation:
+// the Event insert is rolled back if the ticket_type insert fails.
+// Requires the neon-serverless (Pool/websocket) driver in db.ts — the neon-http
+// client does not support db.transaction().
+export const createEventService = async (newEvent: CreateEventInput) => {
+  const { ticketTypes, ...eventFields } = newEvent;
+
+  if (!ticketTypes || ticketTypes.length === 0) {
+    return { error: "no_ticket_types" as const };
+  }
+
+  for (let i = 0; i < ticketTypes.length; i++) {
+    const reason = validateTicketTypeInput(ticketTypes[i]);
+    if (reason) {
+      return { error: "invalid_ticket_type" as const, index: i, reason };
+    }
+  }
+
+  // Server-computed — never trust client-supplied totals.
+  const ticketsPrice = Math.min(...ticketTypes.map((t) => t.price)).toFixed(2);
+  const totalTickets = ticketTypes.reduce((sum, t) => sum + t.totalQuantity, 0);
+
+  const result = await db.transaction(async (tx) => {
+    const [createdEvent] = await tx
+      .insert(EventsTable)
+      .values({ ...eventFields, ticketsPrice, totalTickets } as TIEvents)
+      .returning();
+
+    const ticketTypeValues: TITicketType[] = ticketTypes.map((t) => ({
+      EventID: createdEvent.EventID,
+      name: t.name,
+      type: t.type ?? "individual",
+      groupSize: t.groupSize ?? null,
+      price: t.price.toFixed(2),
+      totalQuantity: t.totalQuantity,
+      description: t.description,
+    }));
+
+    const createdTicketTypes = await tx
+      .insert(TicketTypeTable)
+      .values(ticketTypeValues)
+      .returning();
+
+    return { event: createdEvent, ticketTypes: createdTicketTypes };
+  });
+
+  return result;
 };
 
 

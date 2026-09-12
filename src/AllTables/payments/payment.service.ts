@@ -1,10 +1,10 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import crypto from "crypto";
 import db from "../../Drizzle/db";
-import { PaymentTable, RSVPTable } from "../../Drizzle/schema";
+import { EventsTable, PaymentTable, RSVPTable } from "../../Drizzle/schema";
 import { normalizePhoneNumber } from "../../utils/normalizePhoneNumber";
 import { initiateGatewayStkPush } from "../../lib/paybillGateway";
-import { markReservationPaidService } from "../rsvp/reservation.service";
+import { markReservationPaidService, releaseTicketTypeCapacity } from "../rsvp/reservation.service";
 
 // Maps the internal DB enum to the vocabulary the frontend polling contract
 // expects (eventor-payment-spec.md).
@@ -162,6 +162,26 @@ export const handleGatewayWebhookService = async (payload: {
       await markReservationPaidService(r.RSVPID);
     }
   } else {
+    // W2 — release capacity reserved for this batch and cancel its RSVPs.
+    const rsvps = await db.query.RSVPTable.findMany({ where: eq(RSVPTable.PaymentID, payment.PaymentID) });
+
+    const countByTicketType = new Map<number, number>();
+    for (const r of rsvps) {
+      countByTicketType.set(r.TicketTypeID, (countByTicketType.get(r.TicketTypeID) ?? 0) + 1);
+    }
+    await releaseTicketTypeCapacity(
+      [...countByTicketType].map(([TicketTypeID, quantity]) => ({ TicketTypeID, quantity }))
+    );
+    await db
+      .update(EventsTable)
+      .set({ soldTickets: sql`${EventsTable.soldTickets} - ${rsvps.length}` })
+      .where(eq(EventsTable.EventID, payment.EventID));
+
+    await db
+      .update(RSVPTable)
+      .set({ RSVPStatus: "Cancelled" })
+      .where(eq(RSVPTable.PaymentID, payment.PaymentID));
+
     await db
       .update(PaymentTable)
       .set({ paymentStatus: "Failed", updated_at: new Date().toISOString() })

@@ -23,8 +23,9 @@ export type CreateReservationInput = {
 };
 
 // Release previously-reserved TicketType capacity — used on any failure after
-// L2 succeeds but before the booking completes.
-const releaseTicketTypeCapacity = async (reserved: { TicketTypeID: number; quantity: number }[]) => {
+// L2 succeeds but before the booking completes. Also reused by payment.service's
+// webhook failure branch (W2) to release capacity on a failed payment.
+export const releaseTicketTypeCapacity = async (reserved: { TicketTypeID: number; quantity: number }[]) => {
   for (const r of reserved) {
     await db.update(TicketTypeTable)
       .set({ soldQuantity: sql`${TicketTypeTable.soldQuantity} - ${r.quantity}` })

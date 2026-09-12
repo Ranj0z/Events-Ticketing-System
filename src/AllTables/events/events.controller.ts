@@ -8,17 +8,27 @@ import { createEventService, deleteEventService, getAllEventsService, getEventBy
 //Create a new Event
 export const createEventController = async (req: Request, res: Response) =>{
     try {
-        // Never trust a client-supplied HostID — the event's host is always
-        // the authenticated user creating it.
-        const { HostID: _clientHostID, ...eventInput } = req.body;
+        // Never trust a client-supplied HostID, ticketsPrice, or totalTickets —
+        // HostID is always the authenticated user; ticketsPrice/totalTickets
+        // are computed server-side from ticketTypes[] in the service.
+        const { HostID: _clientHostID, ticketsPrice: _clientTicketsPrice, totalTickets: _clientTotalTickets, ...eventInput } = req.body;
         const user = (req as any).user;
         const newEvent = { ...eventInput, HostID: user?.user_id };
 
-        const createEvent = await createEventService(newEvent)
-        if (!createEvent) {
-            return res.json({message: "New Event not created"})
-        } 
-        return res.status(201).json({message: "New Event Created!!", newEvent: createEvent})            
+        const result = await createEventService(newEvent);
+
+        if ("error" in result) {
+            if (result.error === "no_ticket_types") {
+                return res.status(400).json({ message: "At least one ticket type is required" });
+            }
+            return res.status(400).json({ message: `Invalid ticket type at index ${result.index}: ${result.reason}` });
+        }
+
+        return res.status(201).json({
+            message: "New Event Created!!",
+            event: result.event,
+            ticketTypes: result.ticketTypes,
+        });
     } catch (error: any) {
         console.error("createEventController error:", error);
         return res.status(500).json({error: error.message})
