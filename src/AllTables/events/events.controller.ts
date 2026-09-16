@@ -1,17 +1,17 @@
 // API
 
 import { Request, Response } from "express";
-import { createEventService, deleteEventService, getAllEventsService, getEventByIDService, getEventsAttendedByUserIDService, getEventsByHostIDService, getEventByVenueIDService, updateEventService } from "./events.service";
+import { createEventService, deleteEventService, getAllEventsService, getEventByIDService, getEventsAttendedByUserIDService, getEventsByHostIDService, getEventByVenueIDService, getEventBySlugService, updateEventService } from "./events.service";
 
 
 
 //Create a new Event
 export const createEventController = async (req: Request, res: Response) =>{
     try {
-        // Never trust a client-supplied HostID, ticketsPrice, or totalTickets —
-        // HostID is always the authenticated user; ticketsPrice/totalTickets
-        // are computed server-side from ticketTypes[] in the service.
-        const { HostID: _clientHostID, ticketsPrice: _clientTicketsPrice, totalTickets: _clientTotalTickets, ...eventInput } = req.body;
+        // Never trust a client-supplied HostID, ticketsPrice, totalTickets, or slug —
+        // HostID is always the authenticated user; ticketsPrice/totalTickets are
+        // computed server-side from ticketTypes[], and slug is generated from title.
+        const { HostID: _clientHostID, ticketsPrice: _clientTicketsPrice, totalTickets: _clientTotalTickets, slug: _clientSlug, ...eventInput } = req.body;
         const user = (req as any).user;
         const newEvent = { ...eventInput, HostID: user?.user_id };
 
@@ -20,6 +20,9 @@ export const createEventController = async (req: Request, res: Response) =>{
         if ("error" in result) {
             if (result.error === "no_ticket_types") {
                 return res.status(400).json({ message: "At least one ticket type is required" });
+            }
+            if (result.error === "invalid_category") {
+                return res.status(400).json({ message: result.reason });
             }
             return res.status(400).json({ message: `Invalid ticket type at index ${result.index}: ${result.reason}` });
         }
@@ -87,6 +90,26 @@ export const getEventByVenueIdController = async (req: Request, res: Response) =
     }
 }
 
+// get Event by slug controller (public) — resolves the current slug, returns a
+// redirect target if the slug matches a renamed event's history, or 404 if neither.
+export const getEventBySlugController = async (req: Request, res: Response) => {
+    try {
+        const { slug } = req.params;
+        const result = await getEventBySlugService(slug);
+
+        if (result.found) {
+            return res.status(200).json({ event: result.event });
+        }
+        if (result.redirectSlug) {
+            return res.status(200).json({ redirect: true, slug: result.redirectSlug });
+        }
+        return res.status(404).json({ message: "Event not found" });
+    } catch (error: any) {
+        console.error("getEventBySlugController error:", error);
+        return res.status(500).json({ error: error.message });
+    }
+}
+
 // get events a user has RSVP'd to (attended/booked), by user id controller
 export const getEventsAttendedByUserIdController = async (req: Request, res: Response) => {
     try {
@@ -140,6 +163,9 @@ export const updateEventController = async (req: Request, res: Response) => {
         }       
 
         const updated = await updateEventService(id, EventUpdates);
+        if (updated && "error" in updated) {
+            return res.status(400).json({ message: updated.reason });
+        }
         if (!updated) {
             return res.status(404).json({message: "Event not Updated !!"});
         }  

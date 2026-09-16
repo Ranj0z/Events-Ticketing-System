@@ -1,7 +1,8 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and, ne } from "drizzle-orm";
 import db from "../../Drizzle/db";
-import { EventsTable, RSVPTable, TicketTypeTable, TIEvents, TITicketType, VenuesTable } from "../../Drizzle/schema";
+import { EventsTable, EventSlugHistoryTable, RSVPTable, TicketTypeTable, TIEvents, TITicketType, VenuesTable } from "../../Drizzle/schema";
 import { deleteImageService } from "../uploads/upload.service";
+import { slugify } from "../../utils/slugify";
 
 export type TicketTypeInput = {
   name: string;
@@ -12,7 +13,7 @@ export type TicketTypeInput = {
   description?: string;
 };
 
-export type CreateEventInput = Omit<TIEvents, "ticketsPrice" | "totalTickets"> & {
+export type CreateEventInput = Omit<TIEvents, "ticketsPrice" | "totalTickets" | "slug"> & {
   ticketTypes: TicketTypeInput[];
 };
 
@@ -37,6 +38,79 @@ const validateTicketTypeInput = (t: TicketTypeInput): string | null => {
   return null;
 };
 
+// Validates the category/customCategory pairing. Returns a reason string if invalid,
+// null if valid. Does not mutate — caller is responsible for forcing customCategory
+// to null when category isn't "Other".
+const validateCategoryFields = (
+  category: string | null | undefined,
+  customCategory: string | null | undefined
+): string | null => {
+  if (category === "Other") {
+    if (!customCategory || typeof customCategory !== "string" || customCategory.trim().length === 0) {
+      return "customCategory is required when category is 'Other'";
+    }
+    if (customCategory.length > 30) {
+      return "customCategory must be 30 characters or fewer";
+    }
+  }
+  return null;
+};
+
+// Generates a unique slug for an event title. Checks both the live EventsTable.slug
+// column and EventSlugHistoryTable — a new/renamed event is never assigned a slug
+// that appears in history, even if that old event no longer uses it, so old shared
+// links can't be hijacked.
+export const generateUniqueSlugService = async (title: string, excludeEventId?: number): Promise<string> => {
+  const base = slugify(title);
+  let candidate = base;
+  let suffix = 2;
+
+  while (true) {
+    const [liveMatch, historyMatch] = await Promise.all([
+      db.query.EventsTable.findFirst({
+        where: excludeEventId
+          ? and(eq(EventsTable.slug, candidate), ne(EventsTable.EventID, excludeEventId))
+          : eq(EventsTable.slug, candidate),
+        columns: { EventID: true },
+      }),
+      db.query.EventSlugHistoryTable.findFirst({
+        where: eq(EventSlugHistoryTable.slug, candidate),
+        columns: { id: true },
+      }),
+    ]);
+
+    if (!liveMatch && !historyMatch) return candidate;
+
+    candidate = `${base}-${suffix}`.slice(0, 60);
+    suffix++;
+  }
+};
+
+// Looks up an event by its current slug. If the slug isn't live, checks slug history
+// for a redirect target (the event's current slug). found: false + redirectSlug: null
+// means the slug is unknown anywhere → controller 404s.
+export const getEventBySlugService = async (slug: string) => {
+  const event = await db.query.EventsTable.findFirst({ where: eq(EventsTable.slug, slug) });
+  if (event) {
+    return { found: true as const, event };
+  }
+
+  const historyEntry = await db.query.EventSlugHistoryTable.findFirst({
+    where: eq(EventSlugHistoryTable.slug, slug),
+  });
+
+  if (!historyEntry) {
+    return { found: false as const, redirectSlug: null };
+  }
+
+  const currentEvent = await db.query.EventsTable.findFirst({
+    where: eq(EventsTable.EventID, historyEntry.EventID),
+    columns: { slug: true },
+  });
+
+  return { found: false as const, redirectSlug: currentEvent?.slug ?? null };
+};
+
 //Event Table
 // events.service.ts
 // Creates an Event together with its ticket_type tiers in one atomic operation:
@@ -57,14 +131,23 @@ export const createEventService = async (newEvent: CreateEventInput) => {
     }
   }
 
-  // Server-computed — never trust client-supplied totals.
+  const categoryError = validateCategoryFields(eventFields.category, eventFields.customCategory);
+  if (categoryError) {
+    return { error: "invalid_category" as const, reason: categoryError };
+  }
+  if (eventFields.category !== "Other") {
+    eventFields.customCategory = null;
+  }
+
+  // Server-computed — never trust client-supplied totals or slug.
   const ticketsPrice = Math.min(...ticketTypes.map((t) => t.price)).toFixed(2);
   const totalTickets = ticketTypes.reduce((sum, t) => sum + t.totalQuantity, 0);
+  const slug = await generateUniqueSlugService(eventFields.title);
 
   const result = await db.transaction(async (tx) => {
     const [createdEvent] = await tx
       .insert(EventsTable)
-      .values({ ...eventFields, ticketsPrice, totalTickets } as TIEvents)
+      .values({ ...eventFields, slug, ticketsPrice, totalTickets } as TIEvents)
       .returning();
 
     const ticketTypeValues: TITicketType[] = ticketTypes.map((t) => ({
@@ -146,13 +229,44 @@ export const getEventsByHostIDService = async (hostId: number) => {
 
 //update a Event by id
 export const updateEventService = async (eventID: number, eventsTable: Partial<TIEvents>) => {
+    // Slug is server-managed (regenerated only when title changes below) — never
+    // let a client patch it directly.
+    delete (eventsTable as Partial<TIEvents> & { slug?: unknown }).slug;
+
+    // Category/customCategory validation + normalization
+    if (eventsTable.category !== undefined || eventsTable.customCategory !== undefined) {
+        const effectiveCategory = eventsTable.category !== undefined
+            ? eventsTable.category
+            : (await db.query.EventsTable.findFirst({
+                where: eq(EventsTable.EventID, eventID),
+                columns: { category: true }
+            }))?.category;
+
+        const categoryError = validateCategoryFields(effectiveCategory, eventsTable.customCategory);
+        if (categoryError) {
+            return { error: "invalid_category" as const, reason: categoryError };
+        }
+        if (effectiveCategory !== "Other") {
+            eventsTable.customCategory = null;
+        }
+    }
+
     const replacingImage = eventsTable.image_public_id !== undefined;
-    const existing = replacingImage
+    const titleChanging = eventsTable.title !== undefined;
+    const existing = (replacingImage || titleChanging)
         ? await db.query.EventsTable.findFirst({
             where: eq(EventsTable.EventID, eventID),
-            columns: { image_public_id: true }
+            columns: { image_public_id: true, title: true, slug: true }
         })
         : null;
+
+    // Title changed → regenerate the slug and archive the old one so old links
+    // can still resolve via a redirect. (existing.slug is DB-notNull, but the query
+    // builder's inferred type is nullable — the truthy check narrows it for TS.)
+    if (titleChanging && existing && existing.slug && eventsTable.title !== existing.title) {
+        eventsTable.slug = await generateUniqueSlugService(eventsTable.title as string, eventID);
+        await db.insert(EventSlugHistoryTable).values({ slug: existing.slug, EventID: eventID });
+    }
 
     const [updated] = await db.update(EventsTable)
         .set(eventsTable)

@@ -1,21 +1,14 @@
-//routing
 import { Express } from "express";
-import { createEventController, deleteEventController, getAllEventController, getEventByIdController, getEventsAttendedByUserIdController, getEventsByHostIdController, getEventByVenueIdController, updateEventController } from "./events.controller";
+import { createEventController, deleteEventController, getAllEventController, getEventByIdController, getEventBySlugController, getEventsAttendedByUserIdController, getEventsByHostIdController, getEventByVenueIdController, updateEventController } from "./events.controller";
 import { bothHARoleAuth, requireOwnerOrAdmin } from "../../middleware/tokensAuth";
 import { getEventByIDService } from "./events.service";
 
-// Phase 2.1: EventsTable now has HostID, so the ownership check deferred in
-// Phase 1 is wired in below — a host token can only update/delete an event
-// where HostID matches their own user id; admins can touch any event.
 const eventOwnerResolver = async (req: any) => {
     const event = await getEventByIDService(parseInt(req.params.id));
     return event?.HostID ?? null;
 }
 
-//CRUD
 const EventRoutes = (app: Express) => {
-    //route
-    //Add new Event
     app.route("/event/newevent").post(
         bothHARoleAuth,
         async (req, res, next) =>{
@@ -27,7 +20,6 @@ const EventRoutes = (app: Express) => {
         }
     )
 
-    //get all Events
     app.route("/event/allevents").get(
         async (req, res, next) =>{
             try {
@@ -38,7 +30,19 @@ const EventRoutes = (app: Express) => {
         }
     )
 
-    //get Event by ID
+    // Public. Registered ahead of "/event/:id" for readability — no actual collision:
+    // ":id" only matches a single path segment, so it never swallows the two-segment
+    // "/event/slug/:slug" path.
+    app.route("/event/slug/:slug").get(
+        async (req, res, next) =>{
+            try {
+                await getEventBySlugController(req, res);
+            } catch (error: any) {
+                next(error)
+            }
+        }
+    )
+
     app.route("/event/:id").get(
         async (req, res, next) =>{
             try {
@@ -49,7 +53,6 @@ const EventRoutes = (app: Express) => {
         }
     )
 
-    //get Event by Venue ID
     app.route("/event/venue/:id").get(
         async (req, res, next) =>{
             try {
@@ -60,7 +63,6 @@ const EventRoutes = (app: Express) => {
         }
     )
 
-    //get Event by User ID (events the user has RSVP'd to / attended)
     app.route("/event/user/:id").get(
         async (req, res, next) =>{
             try {
@@ -71,7 +73,6 @@ const EventRoutes = (app: Express) => {
         }
     )
 
-    //get Events by Host ID (events the host organizes)
     app.route("/event/host/:id").get(
         async (req, res, next) =>{
             try {
@@ -82,7 +83,6 @@ const EventRoutes = (app: Express) => {
         }
     )
     
-    //update Event by id
     app.route("/event/update/:id").patch(
         bothHARoleAuth,
         requireOwnerOrAdmin(eventOwnerResolver),
@@ -95,7 +95,6 @@ const EventRoutes = (app: Express) => {
         }
     );    
 
-    //Delete Event by ID
     app.route("/event/delete/:id").delete(
         bothHARoleAuth,
         requireOwnerOrAdmin(eventOwnerResolver),

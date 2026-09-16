@@ -1,4 +1,3 @@
-//routing
 import { Express } from "express";
 import {
   deletePaymentController,
@@ -9,23 +8,17 @@ import {
   initiatePaymentController,
   gatewayWebhookController,
   getPaymentStatusController,
+  sweepExpiredHoldsController,
 } from "./payment.controller";
 import { adminRoleAuth, allRoleAuth, requireOwnerOrAdmin } from "../../middleware/tokensAuth";
 import { getPaymentByRSVPIDService } from "./payment.service";
 
-// PaymentTable now carries its own UserID (the buyer) — a buyer can pay for
-// RSVPs belonging to other users/guests, so ownership is checked against the
-// Payment row's UserID rather than the RSVP's UserID. This resolver guards
-// GET /payment/rsvp/:id, whose :id is an RSVPID, so it hops RSVP -> Payment.
 const paymentOwnerResolver = async (req: any) => {
   const payment = await getPaymentByRSVPIDService(parseInt(req.params.id));
   return payment?.UserID ?? null;
 }
 
 const paymentRoutes = (app: Express) => {
-  // start a payment (replaces the old /payment/makePayment). Keyed by
-  // PaymentID, not RSVPID — one Payment covers a whole cart of RSVPs.
-  // Stays open to guest checkout — no auth gate.
   app.route("/payments/:paymentId/initiate").post(
     async (req, res, next) => {
       try {
@@ -36,7 +29,6 @@ const paymentRoutes = (app: Express) => {
     }
   );
 
-  // gateway's HMAC-signed webhook (replaces the old /api/mpesa/callback)
   app.route("/payments/gateway-webhook").post(
     async (req, res, next) => {
       try {
@@ -47,7 +39,6 @@ const paymentRoutes = (app: Express) => {
     }
   );
 
-  // polled by the frontend PaymentModal
   app.route("/payments/:paymentId/status").get(
     async (req, res, next) => {
       try {
@@ -58,7 +49,17 @@ const paymentRoutes = (app: Express) => {
     }
   );
 
-  //Get all payments
+  app.route("/payments/sweep-expired-holds").post(
+    adminRoleAuth,
+    async (req, res, next) => {
+      try {
+        await sweepExpiredHoldsController(req, res);
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
   app.route("/payment/allPayment").get(
     adminRoleAuth,
     async (req, res, next) => {
@@ -70,7 +71,6 @@ const paymentRoutes = (app: Express) => {
     }
   );
 
-  //get Payment by ID
   app.route("/payment/:id").get(
     adminRoleAuth,
     async (req, res, next) => {
@@ -82,7 +82,6 @@ const paymentRoutes = (app: Express) => {
     }
   );
 
-  //Get Payment by eventID
   app.route("/payment/event/:id").get(
     adminRoleAuth,
     async (req, res, next) => {
@@ -94,7 +93,6 @@ const paymentRoutes = (app: Express) => {
     }
   );
 
-  //Get Payment by rsvpID
   app.route("/payment/rsvp/:id").get(
     allRoleAuth,
     requireOwnerOrAdmin(paymentOwnerResolver),
@@ -107,7 +105,6 @@ const paymentRoutes = (app: Express) => {
     }
   );
 
-  //Delete Payment by ID
   app.route("/payment/delete/:id").delete(
     adminRoleAuth,
     async (req, res, next) => {

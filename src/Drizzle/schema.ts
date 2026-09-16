@@ -6,9 +6,10 @@ import {serial, boolean, varchar, text, date, decimal, integer, pgTable, pgEnum,
 export const RoleEnum = pgEnum("role", ["admin", "host", "user"]);
 export const PaymentEnum = pgEnum("Paymentstatus", ["Pending", "Completed", "Failed"]);
 export const StatusEnum = pgEnum("status", ["Pending", "In Progress", "Closed"]);
-export const CategoryEnum = pgEnum("Category", ["Tech", "Data Science", "Web Dev"]);
+export const CategoryEnum = pgEnum("Category", ["Tech", "Data Science", "Web Dev", "Other"]);
 export const RSVPEnum = pgEnum("RSVPstatus", ["Pending", "Booked", "Cancelled"]);
 export const TicketKindEnum = pgEnum("ticket_kind", ["individual", "group"]);
+export const TicketTypeStatusEnum = pgEnum("TicketTypeStatus", ["active", "suspended"]);
 
 //Users Table 
 export const UsersTable = pgTable("user", {
@@ -35,10 +36,12 @@ export const UsersTable = pgTable("user", {
 export const EventsTable = pgTable("events", {
     EventID: serial("EventID").primaryKey(),
     title: varchar("title", { length: 50 }).notNull(),
+    slug: varchar("slug", { length: 60 }).notNull().unique(),
     description: text("description").notNull(),
     VenueID: integer("VenueID").references(() =>VenuesTable.VenueID, {onDelete: "cascade"}).notNull(),
     HostID: integer("HostID").references(() =>UsersTable.UserID).notNull(),
     category: CategoryEnum("Category").default("Tech"),
+    customCategory: varchar("custom_category", { length: 30 }),
     date: date("event_date").notNull(),
     time: varchar("time", { length: 50 }).notNull(),
     ticketsPrice: decimal("tickets_price", { precision: 10, scale: 2 }).notNull(),
@@ -61,11 +64,34 @@ export const TicketTypeTable = pgTable("ticket_type", {
     price: decimal("price", { precision: 10, scale: 2 }).notNull(),
     totalQuantity: integer("total_quantity").notNull(),
     soldQuantity: integer("sold_quantity").notNull().default(0),
+    status: TicketTypeStatusEnum("status").notNull().default("active"),
     description: text("description"),
     createdAt: date("date_created").notNull().defaultNow(),
     updatedAt: date("date_updated"),
 })
 
+//Event Slug History Table — every slug an event has ever had. Old slugs are never
+//reassigned to a different event, even after the event that used them is renamed,
+//so lookups can redirect old links to the event's current slug.
+export const EventSlugHistoryTable = pgTable("event_slug_history", {
+    id: serial("id").primaryKey(),
+    slug: varchar("slug", { length: 60 }).notNull().unique(),
+    EventID: integer("Event_id").references(() => EventsTable.EventID, { onDelete: "cascade" }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+})
+
+//Event Images Table — additional carousel slides for an event's details page.
+//The event's own image_url/image_public_id columns remain the primary/hero
+//image; this table only holds extra images beyond that one, ordered by
+//sortOrder (insertion order for v1 — no drag-to-reorder yet).
+export const EventImagesTable = pgTable("event_images", {
+    id: serial("id").primaryKey(),
+    EventID: integer("Event_id").references(() => EventsTable.EventID, { onDelete: "cascade" }).notNull(),
+    url: varchar("url", { length: 500 }).notNull(),
+    public_id: varchar("public_id", { length: 255 }).notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+})
 
 //Venues Table
 export const VenuesTable = pgTable("venue", {
@@ -135,10 +161,28 @@ export const VenueRelations = relations(VenuesTable, ({many}) =>({
     events: many (EventsTable)
 }))
 
-//Event to RSVP Table, Event to TicketType Table  - one to many
+//Event to RSVP Table, Event to TicketType Table, Event to EventSlugHistory Table, Event to EventImages Table - one to many
 export const EventRelations = relations(EventsTable, ({many}) =>({
     RSVP: many(RSVPTable),
-    TicketTypes: many(TicketTypeTable)
+    TicketTypes: many(TicketTypeTable),
+    SlugHistory: many(EventSlugHistoryTable),
+    Images: many(EventImagesTable)
+}))
+
+//EventSlugHistory to Event Table - many to one
+export const EventSlugHistoryRelations = relations(EventSlugHistoryTable, ({one}) =>({
+    event: one(EventsTable, {
+        fields: [EventSlugHistoryTable.EventID],
+        references: [EventsTable.EventID],
+    }),
+}))
+
+//EventImages to Event Table - many to one
+export const EventImagesRelations = relations(EventImagesTable, ({one}) =>({
+    event: one(EventsTable, {
+        fields: [EventImagesTable.EventID],
+        references: [EventsTable.EventID],
+    }),
 }))
 
 //User to RSVP Table  - one to many
@@ -188,6 +232,10 @@ export type TITicketType = typeof TicketTypeTable.$inferInsert;
 export type TSTicketType = typeof TicketTypeTable.$inferSelect;
 export type TIVenues = typeof VenuesTable.$inferInsert;
 export type TSVenues = typeof VenuesTable.$inferSelect;
+export type TIEventSlugHistory = typeof EventSlugHistoryTable.$inferInsert;
+export type TSEventSlugHistory = typeof EventSlugHistoryTable.$inferSelect;
+export type TIEventImages = typeof EventImagesTable.$inferInsert;
+export type TSEventImages = typeof EventImagesTable.$inferSelect;
 export type TSUserLoginInput = {
     email: string;
     password: string;

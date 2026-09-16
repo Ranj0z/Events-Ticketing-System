@@ -39,7 +39,19 @@ const validateCart = (cart: unknown): string | null => {
   return null;
 };
 
-//Create a new reservation (cart: multiple ticket types / one shared payment)
+//Get all Reservation
+export const getAllReservationsController = async (req: Request, res: Response) => {
+  try {
+    const getAllReservations = await getAllReservationsService();
+    if (!getAllReservations || getAllReservations.length === 0) {
+      return res.status(404).json({ message: "No RSVP found" });
+    }
+    return res.status(200).json({ reservations: getAllReservations });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 export const createReservationController = async (req: Request, res: Response) => {
   try {
     const { UserID, cart } = req.body;
@@ -55,20 +67,22 @@ export const createReservationController = async (req: Request, res: Response) =
       return res.status(409).json({ message: "Event full, ticket type sold out, or not found", ...result });
     }
 
-    return res.status(201).json({ message: "New RSVP(s) Created!!", ...result });
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message });
-  }
-};
-
-//Get all Reservation
-export const getAllReservationsController = async (req: Request, res: Response) => {
-  try {
-    const getAllReservations = await getAllReservationsService();
-    if (!getAllReservations || getAllReservations.length === 0) {
-      return res.status(404).json({ message: "No RSVP found" });
+    if (result.payment === null) {
+      return res.status(201).json({
+        message: "You're booked!",
+        bookingConfirmed: true,
+        requiresPayment: false,
+        ...result,
+      });
     }
-    return res.status(200).json({ reservations: getAllReservations });
+
+    return res.status(201).json({
+      message: "Reservation held — complete payment to confirm your booking",
+      bookingConfirmed: false,
+      requiresPayment: true,
+      holdExpiresAt: result.rsvps[0]?.holdExpiresAt ?? null,
+      ...result,
+    });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

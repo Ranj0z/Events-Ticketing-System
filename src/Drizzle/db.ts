@@ -4,16 +4,12 @@ import * as schema from "./schema"
 import { Pool, neonConfig } from "@neondatabase/serverless";
 import ws from "ws";
 
-// Render runs plain Node.js, not an edge/serverless runtime that ships a
-// global WebSocket — @neondatabase/serverless needs one supplied explicitly
-// for the Pool (transaction-capable) client to open its socket connection.
 neonConfig.webSocketConstructor = ws;
 
 export const client = new Pool({ connectionString: process.env.DATABASE_URL! })
 
 const db = drizzle(client, { schema, logger: false });
 export default db;
-
 
 
 

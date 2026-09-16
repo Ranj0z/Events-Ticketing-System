@@ -7,14 +7,14 @@ import VenueRoutes from './AllTables/venues/venue.route';
 import TicketRoutes from './AllTables/tickets/ticket.route';
 import UploadRoutes from './AllTables/uploads/upload.routes';
 import TicketTypeRoutes from './AllTables/ticket_type/ticket-type.routes';
+import EventImageRoutes from './AllTables/event_images/event-images.routes';
+import cron from 'node-cron';
+import { sweepExpiredHoldsService } from './AllTables/payments/payment.service';
 
 const app = express();
 import cors from "cors";
 import { logger } from './middleware/logger';
 
-// captures the raw body as req.rawBody — needed to verify the gateway
-// webhook's HMAC signature, which is computed over the raw bytes, not a
-// re-serialized JSON object.
 app.use(express.json({
   verify: (req: any, _res, buf) => {
     req.rawBody = buf;
@@ -26,7 +26,7 @@ app.use(logger);
   app.use(cors({
     origin: '*',
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE"]
-  })); // 👈 Enables cross-origin requests
+  }));
 
 // Routes
 UserRoutes(app);
@@ -37,13 +37,12 @@ VenueRoutes(app);
 TicketRoutes(app);
 UploadRoutes(app);
 TicketTypeRoutes(app);
+EventImageRoutes(app);
 
-// Root route
 app.get('/', (req: Request, res: Response) => {
   res.send('Hello, World!');
 });
 
-// ✅ Catch-all error handler (must be after express.json and routes)
 app.use(((err: unknown, req: Request, res: Response, next: NextFunction) => {
   if (
     err instanceof SyntaxError &&
@@ -53,7 +52,6 @@ app.use(((err: unknown, req: Request, res: Response, next: NextFunction) => {
     return res.status(400).json({ message: 'Invalid JSON format' });
   }
 
-  // multer file-type/size rejections (e.g. from upload.middleware.ts)
   if (
     err &&
     typeof err === 'object' &&
@@ -67,8 +65,6 @@ app.use(((err: unknown, req: Request, res: Response, next: NextFunction) => {
     return res.status(400).json({ message });
   }
 
-  // any other error reaching here previously fell through silently
-  // (bare next() with no error = request hangs). Respond instead.
   if (err) {
     console.error('Unhandled error:', err);
     return res.status(500).json({ message: 'Internal server error' });
@@ -87,6 +83,21 @@ process.on('uncaughtException', (error) => {
 
 app.listen(8090, () => {
   console.log('Server is running on http://localhost:8090');
+});
+
+// Releases capacity for any Pending booking whose 15-minute payment hold
+// has lapsed with no resolved payment. Runs in-process — see
+// payment.service.ts:sweepExpiredHoldsService for the release logic shared
+// with the gateway webhook's failure branch.
+cron.schedule('*/5 * * * *', async () => {
+  try {
+    const { releasedBatches, releasedRSVPs } = await sweepExpiredHoldsService();
+    if (releasedBatches > 0) {
+      console.log(`Expired-hold sweep: released ${releasedBatches} batch(es), ${releasedRSVPs} RSVP(s).`);
+    }
+  } catch (error) {
+    console.error('Expired-hold sweep failed:', error);
+  }
 });
 
 export default app;

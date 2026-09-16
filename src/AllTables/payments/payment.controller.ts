@@ -13,6 +13,7 @@ import {
   PaymentAlreadyInitiatedError,
   PaymentNotFoundError,
   HoldExpiredError,
+  sweepExpiredHoldsService,
 } from "./payment.service";
 import { Request, Response } from "express";
 
@@ -38,6 +39,15 @@ export const initiatePaymentController = async (req: Request, res: Response) => 
       return res.status(410).json({ message: "This booking hold has expired" });
     if (error instanceof PaymentAlreadyInitiatedError)
       return res.status(409).json({ message: "A payment is already pending or completed for this booking" });
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const sweepExpiredHoldsController = async (req: Request, res: Response) => {
+  try {
+    const result = await sweepExpiredHoldsService();
+    return res.status(200).json({ message: "Expired holds swept", ...result });
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 };
