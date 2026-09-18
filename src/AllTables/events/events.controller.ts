@@ -98,10 +98,10 @@ export const getEventBySlugController = async (req: Request, res: Response) => {
         const result = await getEventBySlugService(slug);
 
         if (result.found) {
-            return res.status(200).json({ event: result.event });
+            return res.status(200).json({ found: true, event: result.event });
         }
         if (result.redirectSlug) {
-            return res.status(200).json({ redirect: true, slug: result.redirectSlug });
+            return res.status(200).json({ found: false, redirect: true, slug: result.redirectSlug });
         }
         return res.status(404).json({ message: "Event not found" });
     } catch (error: any) {
