@@ -32,11 +32,20 @@ export const sendEmail = async (
         if (mailRes.accepted.length > 0) {  // Check if the email was accepted
             return 'Email sent successfully';
         } else if (mailRes.rejected.length > 0) {
-            return 'Email not sent';
+            throw new Error(`Email rejected by server: ${JSON.stringify(mailRes.rejected)}`);
         } else {
-            return 'Email server error';
+            throw new Error('Email server error: no recipients accepted or rejected');
         }
     } catch (error: any) {
-        return JSON.stringify(error.message, null, 500);
+        console.error('sendEmail failed:', {
+            to: email,
+            subject,
+            code: error?.code,
+            command: error?.command,
+            responseCode: error?.responseCode,
+            response: error?.response,
+            message: error?.message,
+        });
+        throw error;
     }
 };
