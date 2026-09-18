@@ -43,6 +43,13 @@ export const getPaymentStatusService = async (paymentId: number) => {
 export class PaymentAlreadyInitiatedError extends Error {}
 export class PaymentNotFoundError extends Error {}
 export class HoldExpiredError extends Error {}
+export class GatewayRateLimitedError extends Error {
+  retryAfterSeconds?: number;
+  constructor(retryAfterSeconds?: number) {
+    super("Gateway rate limit exceeded");
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
 
 export const initiatePaymentService = async ({
   paymentId,
@@ -88,11 +95,18 @@ export const initiatePaymentService = async ({
       .where(eq(PaymentTable.PaymentID, paymentId));
 
     return { paymentId };
-  } catch (error) {
+  } catch (error: any) {
     await db
       .update(PaymentTable)
       .set({ paymentStatus: "Failed", gatewayReference: null })
       .where(eq(PaymentTable.PaymentID, paymentId));
+
+    if (error?.response?.status === 429) {
+      const retryAfterHeader = error.response.headers?.["retry-after"];
+      const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : undefined;
+      throw new GatewayRateLimitedError(Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined);
+    }
+
     throw error;
   }
 };

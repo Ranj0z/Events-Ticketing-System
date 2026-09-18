@@ -13,6 +13,7 @@ import {
   PaymentAlreadyInitiatedError,
   PaymentNotFoundError,
   HoldExpiredError,
+  GatewayRateLimitedError,
   sweepExpiredHoldsService,
 } from "./payment.service";
 import { Request, Response } from "express";
@@ -39,6 +40,10 @@ export const initiatePaymentController = async (req: Request, res: Response) => 
       return res.status(410).json({ message: "This booking hold has expired" });
     if (error instanceof PaymentAlreadyInitiatedError)
       return res.status(409).json({ message: "A payment is already pending or completed for this booking" });
+    if (error instanceof GatewayRateLimitedError) {
+      if (error.retryAfterSeconds) res.set("Retry-After", String(error.retryAfterSeconds));
+      return res.status(429).json({ message: "Too many payment attempts, please try again shortly" });
+    }
     return res.status(500).json({ error: error.message });
   }
 };
