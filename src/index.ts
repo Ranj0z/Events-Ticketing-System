@@ -24,7 +24,7 @@ app.use(express.json({
 app.use(logger);
 
   app.use(cors({
-    origin: '*',
+    origin: 'https://eventor-seven.vercel.app',
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE"]
   }));
 
