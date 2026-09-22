@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import db from "../../Drizzle/db";
 import {
   PaymentTable,
@@ -7,6 +7,7 @@ import {
   WithdrawalRequestTable,
   TIWallet,
 } from "../../Drizzle/schema";
+import { SAFE_USER_COLUMNS } from "../../utils/userSelectors";
 
 export class WalletNotFoundError extends Error {}
 export class InsufficientBalanceError extends Error {}
@@ -209,4 +210,53 @@ export const getAllWithdrawalsService = async (status?: "Pending" | "Approved" |
 export const getWithdrawalsByHostService = async (userId: number) => {
   const wallet = await getOrCreateWalletService(userId);
   return db.query.WithdrawalRequestTable.findMany({ where: eq(WithdrawalRequestTable.WalletID, wallet.WalletID) });
+};
+
+// Admin: every host wallet, joined against the host's name/email.
+// Sortable by balance or by wallet creation date (assumption — no other
+// sort field was specified; add more via the sortBy union if needed).
+export const getAllWalletsService = async (params?: {
+  limit?: number;
+  offset?: number;
+  sortBy?: "balance" | "createdAt";
+  sortOrder?: "asc" | "desc";
+}) => {
+  const sortBy = params?.sortBy ?? "createdAt";
+  const sortOrder = params?.sortOrder ?? "desc";
+  const orderFn = sortOrder === "asc" ? asc : desc;
+  const orderColumn = sortBy === "balance" ? WalletTable.balance : WalletTable.createdAt;
+
+  const wallets = await db.query.WalletTable.findMany({
+    limit: params?.limit ?? 50,
+    offset: params?.offset ?? 0,
+    orderBy: [orderFn(orderColumn)],
+    with: {
+      user: { columns: SAFE_USER_COLUMNS },
+    },
+  });
+
+  return wallets.map((wallet) => ({
+    WalletID: wallet.WalletID,
+    UserID: wallet.UserID,
+    hostName: wallet.user ? `${wallet.user.firstName} ${wallet.user.lastName}` : null,
+    hostEmail: wallet.user?.email ?? null,
+    balance: wallet.balance,
+  }));
+};
+
+// Admin: a specific host's ledger, by WalletID (not scoped to the caller,
+// unlike getWalletTransactionsService which is host-self-service only).
+export const getWalletLedgerService = async (
+  walletId: number,
+  pagination?: { limit?: number; offset?: number }
+) => {
+  const wallet = await db.query.WalletTable.findFirst({ where: eq(WalletTable.WalletID, walletId) });
+  if (!wallet) throw new WalletNotFoundError();
+
+  return db.query.WalletTransactionTable.findMany({
+    where: eq(WalletTransactionTable.WalletID, walletId),
+    limit: pagination?.limit ?? 50,
+    offset: pagination?.offset ?? 0,
+    orderBy: (t, { desc }) => [desc(t.createdAt)],
+  });
 };

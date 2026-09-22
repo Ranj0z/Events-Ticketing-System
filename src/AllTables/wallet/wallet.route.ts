@@ -1,8 +1,10 @@
 import { Express } from "express";
 import {
+  getAllWalletsController,
   getAllWithdrawalsController,
   getMyWithdrawalsController,
   getWalletBalanceController,
+  getWalletLedgerController,
   getWalletTransactionsController,
   requestWithdrawalController,
   reviewWithdrawalController,
@@ -41,6 +43,24 @@ const walletRoutes = (app: Express) => {
   app.route("/wallet/withdrawals").get(hostRoleAuth, async (req, res, next) => {
     try {
       await getMyWithdrawalsController(req, res);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: all host wallets, joined with host name/email, sortable/paginated
+  app.route("/admin/wallets").get(adminRoleAuth, async (req, res, next) => {
+    try {
+      await getAllWalletsController(req, res);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: a specific host wallet's transaction ledger
+  app.route("/admin/wallets/:walletId/transactions").get(adminRoleAuth, async (req, res, next) => {
+    try {
+      await getWalletLedgerController(req, res);
     } catch (error) {
       next(error);
     }

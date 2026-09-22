@@ -1,7 +1,9 @@
 import { Request, Response } from "express";
 import {
+  getAllWalletsService,
   getAllWithdrawalsService,
   getWalletBalanceService,
+  getWalletLedgerService,
   getWalletTransactionsService,
   getWithdrawalsByHostService,
   InsufficientBalanceError,
@@ -71,6 +73,41 @@ export const getMyWithdrawalsController = async (req: Request, res: Response) =>
     const requests = await getWithdrawalsByHostService(userId);
     return res.status(200).json({ data: requests });
   } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+// Admin: all host wallets, joined with host name/email.
+// Query: ?limit=&offset=&sortBy=balance|createdAt&sortOrder=asc|desc
+export const getAllWalletsController = async (req: Request, res: Response) => {
+  try {
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+    const offset = req.query.offset ? parseInt(req.query.offset as string) : undefined;
+    const sortBy = req.query.sortBy as "balance" | "createdAt" | undefined;
+    const sortOrder = req.query.sortOrder as "asc" | "desc" | undefined;
+
+    const wallets = await getAllWalletsService({ limit, offset, sortBy, sortOrder });
+    return res.status(200).json({ data: wallets });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+// Admin: a specific host wallet's transaction ledger, by :walletId.
+export const getWalletLedgerController = async (req: Request, res: Response) => {
+  try {
+    const walletId = parseInt(req.params.walletId);
+    if (isNaN(walletId)) return res.status(400).json({ message: "Invalid Wallet ID format" });
+
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+    const offset = req.query.offset ? parseInt(req.query.offset as string) : undefined;
+
+    const transactions = await getWalletLedgerService(walletId, { limit, offset });
+    return res.status(200).json({ data: transactions });
+  } catch (error: any) {
+    if (error instanceof WalletNotFoundError) {
+      return res.status(404).json({ message: "Wallet not found" });
+    }
     return res.status(500).json({ error: error.message });
   }
 };
