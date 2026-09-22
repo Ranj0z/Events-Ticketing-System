@@ -5,6 +5,7 @@ import { EventsTable, PaymentTable, RSVPTable } from "../../Drizzle/schema";
 import { normalizePhoneNumber } from "../../utils/normalizePhoneNumber";
 import { initiateGatewayStkPush } from "../../lib/paybillGateway";
 import { markReservationPaidService, releaseTicketTypeCapacity } from "../rsvp/reservation.service";
+import { creditWalletService } from "../wallet/wallet.service";
 
 const STATUS_MAP = {
   Pending: "pending",
@@ -43,13 +44,6 @@ export const getPaymentStatusService = async (paymentId: number) => {
 export class PaymentAlreadyInitiatedError extends Error {}
 export class PaymentNotFoundError extends Error {}
 export class HoldExpiredError extends Error {}
-export class GatewayRateLimitedError extends Error {
-  retryAfterSeconds?: number;
-  constructor(retryAfterSeconds?: number) {
-    super("Gateway rate limit exceeded");
-    this.retryAfterSeconds = retryAfterSeconds;
-  }
-}
 
 export const initiatePaymentService = async ({
   paymentId,
@@ -95,18 +89,11 @@ export const initiatePaymentService = async ({
       .where(eq(PaymentTable.PaymentID, paymentId));
 
     return { paymentId };
-  } catch (error: any) {
+  } catch (error) {
     await db
       .update(PaymentTable)
       .set({ paymentStatus: "Failed", gatewayReference: null })
       .where(eq(PaymentTable.PaymentID, paymentId));
-
-    if (error?.response?.status === 429) {
-      const retryAfterHeader = error.response.headers?.["retry-after"];
-      const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : undefined;
-      throw new GatewayRateLimitedError(Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined);
-    }
-
     throw error;
   }
 };
@@ -192,6 +179,18 @@ export const handleGatewayWebhookService = async (payload: {
         updated_at: new Date().toISOString(),
       })
       .where(eq(PaymentTable.PaymentID, payment.PaymentID));
+
+    // Credit the host's wallet with 100% of the sale. creditWalletService is
+    // idempotent on PaymentID, so a webhook redelivery for an already-
+    // credited payment is a safe no-op.
+    const event = await db.query.EventsTable.findFirst({ where: eq(EventsTable.EventID, payment.EventID) });
+    if (event) {
+      await creditWalletService({
+        hostUserId: event.HostID,
+        paymentId: payment.PaymentID,
+        amount: payment.amount,
+      });
+    }
 
     const rsvps = await db.query.RSVPTable.findMany({ where: eq(RSVPTable.PaymentID, payment.PaymentID) });
     for (const r of rsvps) {

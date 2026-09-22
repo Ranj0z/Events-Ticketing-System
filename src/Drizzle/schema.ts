@@ -10,6 +10,8 @@ export const CategoryEnum = pgEnum("Category", ["Tech", "Data Science", "Web Dev
 export const RSVPEnum = pgEnum("RSVPstatus", ["Pending", "Booked", "Cancelled"]);
 export const TicketKindEnum = pgEnum("ticket_kind", ["individual", "group"]);
 export const TicketTypeStatusEnum = pgEnum("TicketTypeStatus", ["active", "suspended"]);
+export const WalletTransactionTypeEnum = pgEnum("wallet_transaction_type", ["credit", "debit"]);
+export const WithdrawalStatusEnum = pgEnum("withdrawal_status", ["Pending", "Approved", "Rejected"]);
 
 //Users Table 
 export const UsersTable = pgTable("user", {
@@ -145,6 +147,43 @@ export const PaymentTable = pgTable("payment", {
     updated_at: date("payment_update"),
 })
 
+//Wallet Table — one per host, cached balance kept in sync by wallet_transaction
+export const WalletTable = pgTable("wallet", {
+    WalletID: serial("WalletID").primaryKey(),
+    UserID: integer("UserID").references(() =>UsersTable.UserID, {onDelete: "cascade"}).notNull().unique(),
+    balance: decimal("balance", { precision: 10, scale: 2 }).notNull().default("0"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at"),
+}, (table) => ([
+    check("wallet_balance_non_negative", sql`${table.balance} >= 0`)
+]))
+
+//Withdrawal Request Table — host-initiated, admin-actioned. Approved = paid, terminal; no separate Paid state.
+export const WithdrawalRequestTable = pgTable("withdrawal_request", {
+    WithdrawalID: serial("WithdrawalID").primaryKey(),
+    WalletID: integer("WalletID").references(() =>WalletTable.WalletID, {onDelete: "cascade"}).notNull(),
+    amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+    status: WithdrawalStatusEnum("status").default("Pending").notNull(),
+    payoutMethod: varchar("payout_method", { length: 50 }),
+    payoutReference: varchar("payout_reference", { length: 100 }),
+    requestedAt: timestamp("requested_at").notNull().defaultNow(),
+    reviewedBy: integer("reviewed_by").references(() =>UsersTable.UserID),
+    reviewedAt: timestamp("reviewed_at"),
+    rejectionReason: text("rejection_reason"),
+})
+
+//Wallet Transaction Table — immutable ledger; source of truth for wallet.balance
+export const WalletTransactionTable = pgTable("wallet_transaction", {
+    TransactionID: serial("TransactionID").primaryKey(),
+    WalletID: integer("WalletID").references(() =>WalletTable.WalletID, {onDelete: "cascade"}).notNull(),
+    type: WalletTransactionTypeEnum("type").notNull(),
+    amount: decimal("amount", { precision: 10, scale: 2 }).notNull(), // always positive; `type` gives direction
+    PaymentID: integer("Payment_id").references(() =>PaymentTable.PaymentID), // set for credit rows from a sale
+    WithdrawalID: integer("Withdrawal_id").references(() =>WithdrawalRequestTable.WithdrawalID), // set for debit rows from a payout
+    description: text("description"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+})
+
 //User Support Ticket Table
 export const UserSupportTicketsTable = pgTable("ticket", {
     TicketID: serial("TicketID").primaryKey(),
@@ -218,6 +257,52 @@ export const UserTicketsRelations = relations(UsersTable, ({many}) =>({
     UserSupportTickets: many (UserSupportTicketsTable)
 }))
 
+//User to Wallet Table - one to one
+export const UserWalletRelations = relations(UsersTable, ({one}) =>({
+    Wallet: one(WalletTable, {
+        fields: [UsersTable.UserID],
+        references: [WalletTable.UserID],
+    }),
+}))
+
+//Wallet to User Table, Wallet to WalletTransaction Table, Wallet to WithdrawalRequest Table
+export const WalletRelations = relations(WalletTable, ({one, many}) =>({
+    user: one(UsersTable, {
+        fields: [WalletTable.UserID],
+        references: [UsersTable.UserID],
+    }),
+    Transactions: many(WalletTransactionTable),
+    WithdrawalRequests: many(WithdrawalRequestTable),
+}))
+
+//WalletTransaction to Wallet Table, WalletTransaction to Payment Table, WalletTransaction to WithdrawalRequest Table
+export const WalletTransactionRelations = relations(WalletTransactionTable, ({one}) =>({
+    wallet: one(WalletTable, {
+        fields: [WalletTransactionTable.WalletID],
+        references: [WalletTable.WalletID],
+    }),
+    payment: one(PaymentTable, {
+        fields: [WalletTransactionTable.PaymentID],
+        references: [PaymentTable.PaymentID],
+    }),
+    withdrawal: one(WithdrawalRequestTable, {
+        fields: [WalletTransactionTable.WithdrawalID],
+        references: [WithdrawalRequestTable.WithdrawalID],
+    }),
+}))
+
+//WithdrawalRequest to Wallet Table, WithdrawalRequest to User(reviewer) Table
+export const WithdrawalRequestRelations = relations(WithdrawalRequestTable, ({one}) =>({
+    wallet: one(WalletTable, {
+        fields: [WithdrawalRequestTable.WalletID],
+        references: [WalletTable.WalletID],
+    }),
+    reviewer: one(UsersTable, {
+        fields: [WithdrawalRequestTable.reviewedBy],
+        references: [UsersTable.UserID],
+    }),
+}))
+
 export type TIUsers = typeof UsersTable.$inferInsert;
 export type TSUsers = typeof UsersTable.$inferSelect;
 export type TIUserSupportTickets= typeof UserSupportTicketsTable.$inferInsert;
@@ -236,6 +321,12 @@ export type TIEventSlugHistory = typeof EventSlugHistoryTable.$inferInsert;
 export type TSEventSlugHistory = typeof EventSlugHistoryTable.$inferSelect;
 export type TIEventImages = typeof EventImagesTable.$inferInsert;
 export type TSEventImages = typeof EventImagesTable.$inferSelect;
+export type TIWallet = typeof WalletTable.$inferInsert;
+export type TSWallet = typeof WalletTable.$inferSelect;
+export type TIWalletTransaction = typeof WalletTransactionTable.$inferInsert;
+export type TSWalletTransaction = typeof WalletTransactionTable.$inferSelect;
+export type TIWithdrawalRequest = typeof WithdrawalRequestTable.$inferInsert;
+export type TSWithdrawalRequest = typeof WithdrawalRequestTable.$inferSelect;
 export type TSUserLoginInput = {
     email: string;
     password: string;

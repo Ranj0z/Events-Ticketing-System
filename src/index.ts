@@ -8,6 +8,7 @@ import TicketRoutes from './AllTables/tickets/ticket.route';
 import UploadRoutes from './AllTables/uploads/upload.routes';
 import TicketTypeRoutes from './AllTables/ticket_type/ticket-type.routes';
 import EventImageRoutes from './AllTables/event_images/event-images.routes';
+import walletRoutes from './AllTables/wallet/wallet.route';
 import cron from 'node-cron';
 import { sweepExpiredHoldsService } from './AllTables/payments/payment.service';
 
@@ -24,7 +25,7 @@ app.use(express.json({
 app.use(logger);
 
   app.use(cors({
-    origin: 'https://eventor-seven.vercel.app',
+    origin: '*',
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE"]
   }));
 
@@ -38,6 +39,7 @@ TicketRoutes(app);
 UploadRoutes(app);
 TicketTypeRoutes(app);
 EventImageRoutes(app);
+walletRoutes(app);
 
 app.get('/', (req: Request, res: Response) => {
   res.send('Hello, World!');
