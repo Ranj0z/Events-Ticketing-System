@@ -30,7 +30,7 @@ export const initiateGatewayStkPush = async ({
       order_ref: orderRef,
       description: description ?? "Eventor ticket payment",
     },
-    { headers: { "X-API-Key": process.env.GATEWAY_API_KEY! } }
+    { headers: { "X-API-Key": process.env.GATEWAY_API_KEY! }, timeout: 60000  }
   );
 
   return data;
