@@ -2,13 +2,29 @@ import { eq, and } from "drizzle-orm";
 import db from "../../Drizzle/db";
 import { EventsTable, TicketTypeTable, TITicketType } from "../../Drizzle/schema";
 
-// Get all Ticket Type tiers for a given Event
+// §2 — derived effective status. Never stored; computed at read time.
+// "suspended" = host manually pulled it. "expired" = saleEndsAt passed.
+// "active" = neither. Public pages filter on effectiveStatus === "active";
+// admin views get all three so they can tell the difference.
+export const computeEffectiveStatus = (
+  status: "active" | "suspended",
+  saleEndsAt: Date | null | undefined
+): "active" | "suspended" | "expired" => {
+  if (status === "suspended") return "suspended";
+  if (saleEndsAt !== null && saleEndsAt !== undefined && saleEndsAt <= new Date()) return "expired";
+  return "active";
+};
+
+// Get all Ticket Type tiers for a given Event, each enriched with effectiveStatus.
 // Used both for displaying an event's tiers and for RSVP cart-building.
 export const getTicketTypesByEventIdService = async (EventID: number) => {
   const ticketTypes = await db.query.TicketTypeTable.findMany({
     where: eq(TicketTypeTable.EventID, EventID),
   });
-  return ticketTypes;
+  return ticketTypes.map((t) => ({
+    ...t,
+    effectiveStatus: computeEffectiveStatus(t.status, t.saleEndsAt),
+  }));
 };
 
 // Resolves the HostID that owns a ticket type, via its parent event. Used by the
@@ -29,13 +45,18 @@ export const getTicketTypeOwnerHostIdService = async (ticketTypeId: number): Pro
 };
 
 // Recomputes the parent event's ticketsPrice (min price across active tiers) and
-// totalTickets (sum of totalQuantity across active tiers). Suspended tiers count
-// toward neither — they're effectively pulled from public sale.
+// totalTickets (sum of totalQuantity across active tiers). Suspended and expired tiers
+// count toward neither — they're effectively pulled from public sale.
 const recomputeEventTotalsService = async (EventID: number) => {
-  const activeTiers = await db.query.TicketTypeTable.findMany({
-    where: and(eq(TicketTypeTable.EventID, EventID), eq(TicketTypeTable.status, "active")),
-    columns: { price: true, totalQuantity: true },
+  const allTiers = await db.query.TicketTypeTable.findMany({
+    where: eq(TicketTypeTable.EventID, EventID),
+    columns: { price: true, totalQuantity: true, status: true, saleEndsAt: true },
   });
+
+  // §2 — exclude anything whose effectiveStatus !== "active"
+  const activeTiers = allTiers.filter(
+    (t) => computeEffectiveStatus(t.status, t.saleEndsAt) === "active"
+  );
 
   const ticketsPrice = activeTiers.length > 0
     ? Math.min(...activeTiers.map((t) => Number(t.price))).toFixed(2)
@@ -54,6 +75,8 @@ export type CreateTicketTypeInput = {
   price: number;
   totalQuantity: number;
   description?: string;
+  // §3 — optional early-bird cutoff (ISO datetime string or null)
+  saleEndsAt?: string | null;
 };
 
 // Creates a new ticket-type tier for an event (status: "active" by default), then
@@ -67,14 +90,17 @@ export const createTicketTypeService = async (EventID: number, data: CreateTicke
     price: data.price.toFixed(2),
     totalQuantity: data.totalQuantity,
     description: data.description,
+    saleEndsAt: data.saleEndsAt ? new Date(data.saleEndsAt) : null,
   } as TITicketType).returning();
 
   await recomputeEventTotalsService(EventID);
 
-  return created;
+  return { ...created, effectiveStatus: computeEffectiveStatus(created.status, created.saleEndsAt) };
 };
 
-// Fields locked once a tier has sales — only "status" may change after that point.
+// Fields locked once a tier has sales — only "status" and "saleEndsAt" may change after that point.
+// saleEndsAt is intentionally NOT in LOCKED_FIELDS — a host may extend or cut short an
+// early-bird window after sales have started (per §3).
 const LOCKED_FIELDS = ["name", "price", "totalQuantity", "groupSize", "description"] as const;
 
 export type UpdateTicketTypeInput = Partial<{
@@ -84,16 +110,15 @@ export type UpdateTicketTypeInput = Partial<{
   groupSize: number | null;
   description: string;
   status: "active" | "suspended";
+  // §3 — editable after sales start; null clears the expiry
+  saleEndsAt: string | null;
 }>;
 
 // Updates a ticket-type tier.
-// - soldQuantity > 0: only `status` may be present in the patch — any other field
-//   present is rejected with the offending field names, not silently dropped.
+// - soldQuantity > 0: only `status` and `saleEndsAt` may be present in the patch.
 // - soldQuantity === 0: full patch allowed.
-// - status (active <-> suspended) is always allowed in either direction, regardless
-//   of soldQuantity — reactivation is supported, not one-way.
-// Recomputes the parent event's totals whenever the update could affect them: a new
-// price, a new totalQuantity, or a status flip in/out of "active".
+// Recomputes parent event totals whenever price, totalQuantity, status, or saleEndsAt changes,
+// since any of these can flip a tier's effectiveStatus in or out of "active".
 export const updateTicketTypeService = async (ticketTypeId: number, patch: UpdateTicketTypeInput) => {
   const existing = await db.query.TicketTypeTable.findFirst({
     where: eq(TicketTypeTable.TicketTypeID, ticketTypeId),
@@ -119,20 +144,25 @@ export const updateTicketTypeService = async (ticketTypeId: number, patch: Updat
   if (patch.groupSize !== undefined) updateValues.groupSize = patch.groupSize;
   if (patch.description !== undefined) updateValues.description = patch.description;
   if (patch.status !== undefined) updateValues.status = patch.status;
+  if (patch.saleEndsAt !== undefined) {
+    updateValues.saleEndsAt = patch.saleEndsAt ? new Date(patch.saleEndsAt) : null;
+  }
 
   const [updated] = await db.update(TicketTypeTable)
     .set(updateValues)
     .where(eq(TicketTypeTable.TicketTypeID, ticketTypeId))
     .returning();
 
+  // Recompute totals when anything that affects effectiveStatus changes
   const affectsTotals =
     patch.price !== undefined ||
     patch.totalQuantity !== undefined ||
-    (patch.status !== undefined && patch.status !== existing.status);
+    (patch.status !== undefined && patch.status !== existing.status) ||
+    patch.saleEndsAt !== undefined;
 
   if (affectsTotals) {
     await recomputeEventTotalsService(existing.EventID);
   }
 
-  return { ticketType: updated };
+  return { ticketType: { ...updated, effectiveStatus: computeEffectiveStatus(updated.status, updated.saleEndsAt) } };
 };

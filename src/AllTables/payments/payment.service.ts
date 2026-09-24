@@ -5,6 +5,7 @@ import { EventsTable, PaymentTable, RSVPTable } from "../../Drizzle/schema";
 import { normalizePhoneNumber } from "../../utils/normalizePhoneNumber";
 import { initiateGatewayStkPush } from "../../lib/paybillGateway";
 import { markReservationPaidService, releaseTicketTypeCapacity } from "../rsvp/reservation.service";
+import { sendConfirmationEmailService } from "../../mailer/confirmation-email.service";
 import { creditWalletService } from "../wallet/wallet.service";
 
 const STATUS_MAP = {
@@ -195,6 +196,20 @@ export const handleGatewayWebhookService = async (payload: {
     const rsvps = await db.query.RSVPTable.findMany({ where: eq(RSVPTable.PaymentID, payment.PaymentID) });
     for (const r of rsvps) {
       await markReservationPaidService(r.RSVPID);
+    }
+
+    // §6 — send confirmation email to each attendee now that payment is confirmed.
+    // Ticket type map is needed to include tier names in the email.
+    // Fire-and-forget; a send failure must not fail the webhook handler.
+    if (event) {
+      const { TicketTypeTable: TTTable } = await import("../../Drizzle/schema");
+      const { inArray } = await import("drizzle-orm");
+      const ticketTypeIDs = [...new Set(rsvps.map((r) => r.TicketTypeID))];
+      const tts = await db.query.TicketTypeTable.findMany({
+        where: inArray(TTTable.TicketTypeID, ticketTypeIDs),
+      });
+      const ticketTypeById = new Map(tts.map((t) => [t.TicketTypeID, t]));
+      sendConfirmationEmailService({ rsvps, event, ticketTypeById }).catch(() => {});
     }
   } else {
     await releasePaymentBatch(payment);

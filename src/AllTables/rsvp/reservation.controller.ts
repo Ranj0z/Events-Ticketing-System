@@ -64,6 +64,10 @@ export const createReservationController = async (req: Request, res: Response) =
     const result = await createReservationService({ UserID, cart });
 
     if ("error" in result) {
+      // §5 — ticket_type_inactive covers both suspended and expired tiers
+      if (result.error === "ticket_type_inactive") {
+        return res.status(409).json({ message: "This ticket type is no longer available", ...result });
+      }
       return res.status(409).json({ message: "Event full, ticket type sold out, or not found", ...result });
     }
 

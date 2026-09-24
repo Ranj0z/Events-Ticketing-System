@@ -2,6 +2,8 @@ import { randomUUID } from "crypto";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import db from "../../Drizzle/db";
 import { EventsTable, PaymentTable, RSVPTable, TicketTypeTable, TIRSVP } from "../../Drizzle/schema";
+import { computeEffectiveStatus } from "../ticket_type/ticket-type.service";
+import { sendConfirmationEmailService } from "../../mailer/confirmation-email.service";
 
 // ---- Cart types (multi-ticket-type / single-payment booking) ----
 export type CartAttendee = {
@@ -50,6 +52,16 @@ export const createReservationService = async ({ UserID, cart }: CreateReservati
   for (const line of cart) {
     if (!ticketTypeById.has(line.TicketTypeID)) {
       return { error: "ticket_type_not_found" as const, TicketTypeID: line.TicketTypeID };
+    }
+  }
+
+  // §5 — gate on effectiveStatus before reserving any capacity. Catches suspended
+  // and expired tiers that the public page hides but a direct API call could bypass.
+  for (const line of cart) {
+    const tt = ticketTypeById.get(line.TicketTypeID)!;
+    const effectiveStatus = computeEffectiveStatus(tt.status, tt.saleEndsAt);
+    if (effectiveStatus !== "active") {
+      return { error: "ticket_type_inactive" as const, TicketTypeID: line.TicketTypeID };
     }
   }
 
@@ -122,6 +134,13 @@ export const createReservationService = async ({ UserID, cart }: CreateReservati
           PaymentID: null,
         }))
       ).returning();
+
+      // §6 — free ticket: send confirmation immediately (no payment webhook to wait for).
+      // Fire-and-forget; a send failure must not abort the booking.
+      const event = await db.query.EventsTable.findFirst({ where: eq(EventsTable.EventID, EventID) });
+      if (event) {
+        sendConfirmationEmailService({ rsvps, event, ticketTypeById }).catch(() => {});
+      }
 
       return { rsvps, payment: null };
     }

@@ -51,6 +51,9 @@ export const EventsTable = pgTable("events", {
     soldTickets: integer("sold_tickets").notNull().default(0),
     image_url: varchar("Eimage_url"),
     image_public_id: varchar("Eimage_public_id"),
+    // §4 — "coming soon" flag. When true, the real date/time are still stored
+    // and returned on every read; hiding them from public display is a frontend concern.
+    dateTBD: boolean("date_tbd").notNull().default(false),
     createdAt: date("date_created").notNull().defaultNow(),
     updatedAt: date("date_updated")
 })
@@ -67,6 +70,8 @@ export const TicketTypeTable = pgTable("ticket_type", {
     totalQuantity: integer("total_quantity").notNull(),
     soldQuantity: integer("sold_quantity").notNull().default(0),
     status: TicketTypeStatusEnum("status").notNull().default("active"),
+    // §1 — early-bird / sale expiry. null = no expiry (current behavior unchanged).
+    saleEndsAt: timestamp("sale_ends_at"),
     description: text("description"),
     createdAt: date("date_created").notNull().defaultNow(),
     updatedAt: date("date_updated"),

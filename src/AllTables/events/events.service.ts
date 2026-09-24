@@ -114,6 +114,8 @@ export const getEventBySlugService = async (slug: string) => {
 //Event Table
 // events.service.ts
 // Creates an Event together with its ticket_type tiers in one atomic operation:
+// §4 — dateTBD flows in via CreateEventInput (inherited from TIEvents) and is spread
+// into the insert values as-is. The real date/time are always stored and always returned.
 // the Event insert is rolled back if the ticket_type insert fails.
 // Requires the neon-serverless (Pool/websocket) driver in db.ts — the neon-http
 // client does not support db.transaction().
@@ -228,6 +230,9 @@ export const getEventsByHostIDService = async (hostId: number) => {
 };
 
 //update a Event by id
+// §4 — dateTBD is accepted via the standard Partial<TIEvents> patch. The backend always
+// returns the real date/time regardless of dateTBD; hiding it in the public UI is a
+// frontend display decision based on the flag, not a server-side data-secrecy enforcement.
 export const updateEventService = async (eventID: number, eventsTable: Partial<TIEvents>) => {
     // Slug is server-managed (regenerated only when title changes below) — never
     // let a client patch it directly.
