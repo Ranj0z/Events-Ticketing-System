@@ -9,6 +9,7 @@ import {
   getReservationByEventIDService,
   getReservationByRSVPIDService,
   getReservationByUserIDService,
+  getRsvpLookupService,
   linkGuestReservationsService,
   markReservationPaidService,
   markReservationUnpaidService,
@@ -32,6 +33,9 @@ const validateCart = (cart: unknown): string | null => {
     for (const attendee of line.attendees) {
       if (!attendee?.firstName || !attendee?.lastName || !attendee?.email || !attendee?.phoneNumber) {
         return "Every attendee needs firstName, lastName, email, and phoneNumber";
+      }
+      if (attendee.idNumber !== undefined && typeof attendee.idNumber !== "string") {
+        return "idNumber must be a string when provided";
       }
     }
   }
@@ -68,7 +72,28 @@ export const createReservationController = async (req: Request, res: Response) =
       if (result.error === "ticket_type_inactive") {
         return res.status(409).json({ message: "This ticket type is no longer available", ...result });
       }
+      // Partial-payments plan §3/§7 — Option A guards
+      if (result.error === "partial_payments_single_ticket_only") {
+        return res.status(409).json({ message: "This event only supports single-ticket checkout for partial payments", ...result });
+      }
+      if (result.error === "id_number_required") {
+        return res.status(400).json({ message: "idNumber is required for this event", ...result });
+      }
+      if (result.error === "id_number_already_used") {
+        return res.status(409).json({ message: "This ID number has already been used to RSVP for this event", ...result });
+      }
       return res.status(409).json({ message: "Event full, ticket type sold out, or not found", ...result });
+    }
+
+    if ("partialPaymentsEnabled" in result && result.partialPaymentsEnabled) {
+      return res.status(201).json({
+        message: "Reservation held — pay any installment (min KES 100), or the exact remaining balance, to confirm",
+        bookingConfirmed: false,
+        requiresPayment: true,
+        partialPayment: true,
+        holdExpiresAt: result.rsvps[0]?.holdExpiresAt ?? null,
+        ...result,
+      });
     }
 
     if (result.payment === null) {
@@ -87,6 +112,26 @@ export const createReservationController = async (req: Request, res: Response) =
       holdExpiresAt: result.rsvps[0]?.holdExpiresAt ?? null,
       ...result,
     });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+// Plan §5 — unauthenticated lookup by ID number, scoped to one event.
+// Query: /reservation/lookup?eventId=...&idNumber=...
+export const getRsvpLookupController = async (req: Request, res: Response) => {
+  try {
+    const eventId = parseInt(req.query.eventId as string);
+    const idNumber = typeof req.query.idNumber === "string" ? req.query.idNumber : undefined;
+    if (isNaN(eventId) || !idNumber) {
+      return res.status(400).json({ message: "eventId and idNumber are required" });
+    }
+
+    const result = await getRsvpLookupService(eventId, idNumber);
+    if (!result) {
+      return res.status(404).json({ message: "No reservation found for that ID number" });
+    }
+    return res.status(200).json({ data: result });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

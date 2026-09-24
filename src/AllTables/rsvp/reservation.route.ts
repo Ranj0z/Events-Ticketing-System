@@ -1,6 +1,6 @@
 //routing
 import { Express } from "express";
-import { createReservationController, deleteReservationController, getAllReservationsController, getReservationByEventIDController, getReservationByIdController, getReservationByUserIDController, linkGuestReservationsController, markReservationPaidController, markReservationUnpaidController, updateReservationController } from "./reservation.controller";
+import { createReservationController, deleteReservationController, getAllReservationsController, getReservationByEventIDController, getReservationByIdController, getReservationByUserIDController, getRsvpLookupController, linkGuestReservationsController, markReservationPaidController, markReservationUnpaidController, updateReservationController } from "./reservation.controller";
 import { adminRoleAuth, allRoleAuth, requireOwnerOrAdmin } from "../../middleware/tokensAuth";
 import { getReservationByRSVPIDService } from "./reservation.service";
 
@@ -17,6 +17,17 @@ const rsvpRoutes = (app: Express) => {
         async (req, res, next) =>{
             try {
                 await createReservationController(req, res);
+            } catch (error: any) {
+                next(error)
+            }
+        }
+    )
+
+    // Plan §5 — public ID-number lookup, scoped to one event: /reservation/lookup?eventId=&idNumber=
+    app.route("/reservation/lookup").get(
+        async (req, res, next) =>{
+            try {
+                await getRsvpLookupController(req, res);
             } catch (error: any) {
                 next(error)
             }

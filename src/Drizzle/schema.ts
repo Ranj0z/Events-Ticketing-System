@@ -1,5 +1,6 @@
 import {relations, sql} from "drizzle-orm";
-import {serial, boolean, varchar, text, date, decimal, integer, pgTable, pgEnum, timestamp, check} from "drizzle-orm/pg-core";
+import {serial, boolean, varchar, text, date, decimal, integer, pgTable, pgEnum, timestamp, check, uniqueIndex} from "drizzle-orm/pg-core";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 
 //Role ENUM
@@ -54,6 +55,10 @@ export const EventsTable = pgTable("events", {
     // §4 — "coming soon" flag. When true, the real date/time are still stored
     // and returned on every read; hiding them from public display is a frontend concern.
     dateTBD: boolean("date_tbd").notNull().default(false),
+    // Partial-payments plan §2/Q1 — per-event toggle. When true, checkout for
+    // this event is restricted to single-ticket bookings (Option A) and RSVPs
+    // accrue payment via installments instead of one upfront batch Payment.
+    partialPaymentsEnabled: boolean("partial_payments_enabled").notNull().default(false),
     createdAt: date("date_created").notNull().defaultNow(),
     updatedAt: date("date_updated")
 })
@@ -125,15 +130,29 @@ export const RSVPTable = pgTable("RSVP", {
     RSVPStatus: RSVPEnum("StatusRSVP").default('Pending'),
     totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull().default("0"),
     paid: boolean("paid").default(false).notNull(),
+    // Partial-payments plan §2/§5 — national ID, used as an unauthenticated lookup
+    // key (GET /reservation/lookup) so a guest can check balance without an account.
+    // Only required/populated for partialPaymentsEnabled events; nullable otherwise.
+    idNumber: varchar("id_number", { length: 20 }),
+    // Running total credited toward totalAmount via successful installment Payments.
+    // Unused (stays "0") for the existing single-batch-Payment flow.
+    amountPaid: decimal("amount_paid", { precision: 10, scale: 2 }).notNull().default("0"),
     checkInCode: varchar("check_in_code", { length: 100 }).unique(), // QR payload, set at booking time
     checkedIn: boolean("checked_in").default(false).notNull(),
     checkedInAt: timestamp("checked_in_at"),
     checkedInBy: integer("checked_in_by").references(() =>UsersTable.UserID), // staff/host who scanned
     holdExpiresAt: timestamp("hold_expires_at"), // drives the unpaid-hold sweep job
-    PaymentID: integer("Payment_id").references(() =>PaymentTable.PaymentID), // nullable: set once a Payment is created for this RSVP's batch; null for free ($0) tickets, which never get a Payment row
+    PaymentID: integer("Payment_id").references(() =>PaymentTable.PaymentID), // nullable: set once a batch Payment is created for this RSVP's cart; null for free ($0) tickets and for partial-payment RSVPs, which never get a batch Payment row
 }, (table) => ([
     // Every RSVP must be tied to either a registered user or a guest email
-    check("rsvp_user_or_guest", sql`${table.UserID} IS NOT NULL OR ${table.email} IS NOT NULL`)
+    check("rsvp_user_or_guest", sql`${table.UserID} IS NOT NULL OR ${table.email} IS NOT NULL`),
+    // Plan §7 decision: idNumber is unique per event, not globally — the same
+    // ID number may RSVP to different events, but not twice to the same one.
+    // Partial index (WHERE idNumber IS NOT NULL) so non-partial-payment RSVPs,
+    // which never set idNumber, don't collide with each other.
+    uniqueIndex("rsvp_event_id_number_unique")
+        .on(table.EventID, table.idNumber)
+        .where(sql`${table.idNumber} IS NOT NULL`),
 ]))
 
 //Payment Table
@@ -148,6 +167,11 @@ export const PaymentTable = pgTable("payment", {
     paymentMethod: varchar("payment_method", { length: 50 }).notNull().default("M-Pesa"),
     TransactionID: varchar("transaction_id", { length: 50 }), // mpesa receipt — set by the gateway webhook, null until then
     gatewayReference: varchar("gateway_reference", { length: 100 }), // gateway's CheckoutRequestID, set at initiate time
+    // Partial-payments plan §2/§3 (Option A) — set only for installment payments
+    // against a single RSVP; null for the existing batch-cart Payment rows (which
+    // are instead linked the other way, via RSVP.PaymentID). Each installment is
+    // its own Payment row/STK push, so one RSVP can have many of these.
+    rsvpId: integer("rsvp_id").references((): AnyPgColumn => RSVPTable.RSVPID, { onDelete: "cascade" }),
     created_at: date("payment_create").notNull().defaultNow(),
     updated_at: date("payment_update"),
 })
@@ -234,13 +258,19 @@ export const UserRSVPRelations = relations(UsersTable, ({many}) =>({
     RSVP: many(RSVPTable)
 }))
 
-//Payment to RSVP Table - one to many (one Payment covers many RSVPs in a single checkout)
+//Payment to RSVP Table - one to many (one Payment covers many RSVPs in a single checkout — the batch-cart flow)
 //Payment to User Table - many to one (the buyer; null for guest checkout)
+//Payment to RSVP Table - many to one (an installment Payment belongs to exactly one RSVP — the partial-payments flow)
 export const PaymentRSVPRelations = relations(PaymentTable, ({many, one}) =>({
-    RSVP: many(RSVPTable),
+    RSVP: many(RSVPTable, { relationName: "batchPayment" }),
     buyer: one(UsersTable, {
         fields: [PaymentTable.UserID],
         references: [UsersTable.UserID],
+    }),
+    rsvp: one(RSVPTable, {
+        fields: [PaymentTable.rsvpId],
+        references: [RSVPTable.RSVPID],
+        relationName: "installmentPayments",
     }),
 }))
 
@@ -249,12 +279,24 @@ export const UserPaymentRelations = relations(UsersTable, ({many}) =>({
     Payments: many(PaymentTable)
 }))
 
-//RSVP to Payment Table - many to one (each RSVP optionally belongs to one Payment; null for free tickets)
-export const RsvpPaymentRelations = relations(RSVPTable, ({one}) =>({
+//RSVP to Payment Table - many to one (each RSVP optionally belongs to one batch Payment; null for free tickets and partial-payment RSVPs)
+//RSVP to Event Table, RSVP to TicketType Table - many to one (used by the ID-number lookup, plan §5)
+//RSVP to Payment Table - one to many (partial-payments installments — every M-Pesa attempt against this RSVP)
+export const RsvpPaymentRelations = relations(RSVPTable, ({one, many}) =>({
     payment: one(PaymentTable, {
         fields: [RSVPTable.PaymentID],
         references: [PaymentTable.PaymentID],
+        relationName: "batchPayment",
     }),
+    event: one(EventsTable, {
+        fields: [RSVPTable.EventID],
+        references: [EventsTable.EventID],
+    }),
+    ticketType: one(TicketTypeTable, {
+        fields: [RSVPTable.TicketTypeID],
+        references: [TicketTypeTable.TicketTypeID],
+    }),
+    installments: many(PaymentTable, { relationName: "installmentPayments" }),
 }))
 
 //User to UserSupportTickets Table  - one to many

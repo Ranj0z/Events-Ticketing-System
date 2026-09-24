@@ -6,6 +6,7 @@ import {
   getPaymentByIdController,
   getPaymentByRSVPIDController,
   initiatePaymentController,
+  initiateInstallmentPaymentController,
   gatewayWebhookController,
   getPaymentStatusController,
   sweepExpiredHoldsController,
@@ -23,6 +24,17 @@ const paymentRoutes = (app: Express) => {
     async (req, res, next) => {
       try {
         await initiatePaymentController(req, res);
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  // Partial-payments plan §4 — one installment (one STK push) against a specific RSVP.
+  app.route("/payments/rsvp/:rsvpId/initiate-installment").post(
+    async (req, res, next) => {
+      try {
+        await initiateInstallmentPaymentController(req, res);
       } catch (error) {
         next(error);
       }

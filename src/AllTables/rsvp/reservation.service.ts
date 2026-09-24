@@ -11,6 +11,9 @@ export type CartAttendee = {
   lastName: string;
   email: string;
   phoneNumber: string;
+  // Required only when the event has partialPaymentsEnabled — the public
+  // lookup-by-ID key (plan §5). Ignored/optional otherwise.
+  idNumber?: string;
 };
 
 export type CartLine = {
@@ -71,6 +74,29 @@ export const createReservationService = async ({ UserID, cart }: CreateReservati
   }
   const EventID = [...eventIDs][0];
 
+  const event = await db.query.EventsTable.findFirst({ where: eq(EventsTable.EventID, EventID) });
+  if (!event) {
+    return { error: "event_not_found" as const };
+  }
+
+  // Partial-payments plan §3 (Option A) — restricted to single-ticket checkout,
+  // and every attendee needs the idNumber used for the public lookup-by-ID flow.
+  if (event.partialPaymentsEnabled) {
+    if (cart.length !== 1 || cart[0].quantity !== 1) {
+      return { error: "partial_payments_single_ticket_only" as const };
+    }
+    const idNumber = cart[0].attendees[0]?.idNumber;
+    if (!idNumber) {
+      return { error: "id_number_required" as const };
+    }
+    const existing = await db.query.RSVPTable.findFirst({
+      where: and(eq(RSVPTable.EventID, EventID), eq(RSVPTable.idNumber, idNumber)),
+    });
+    if (existing) {
+      return { error: "id_number_already_used" as const };
+    }
+  }
+
   // L2 — reserve capacity per ticket type, in order, rolling back on the first failure.
   const reserved: { TicketTypeID: number; quantity: number }[] = [];
   for (const line of cart) {
@@ -116,6 +142,7 @@ export const createReservationService = async ({ UserID, cart }: CreateReservati
       lastName: attendee.lastName,
       email: attendee.email,
       phoneNumber: attendee.phoneNumber,
+      idNumber: attendee.idNumber ?? null,
       totalAmount: ticketType.price,
       checkInCode: randomUUID(),
     }));
@@ -137,12 +164,27 @@ export const createReservationService = async ({ UserID, cart }: CreateReservati
 
       // §6 — free ticket: send confirmation immediately (no payment webhook to wait for).
       // Fire-and-forget; a send failure must not abort the booking.
-      const event = await db.query.EventsTable.findFirst({ where: eq(EventsTable.EventID, EventID) });
-      if (event) {
-        sendConfirmationEmailService({ rsvps, event, ticketTypeById }).catch(() => {});
-      }
+      sendConfirmationEmailService({ rsvps, event, ticketTypeById }).catch(() => {});
 
       return { rsvps, payment: null };
+    }
+
+    // Partial-payments plan §4 — no upfront batch Payment; the amount is chosen
+    // per installment via /payments/rsvp/:rsvpId/initiate-installment instead.
+    if (event.partialPaymentsEnabled) {
+      const holdExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+      const rsvps = await db.insert(RSVPTable).values(
+        rsvpValues.map((r) => ({
+          ...r,
+          RSVPStatus: "Pending" as const,
+          paid: false,
+          PaymentID: null,
+          amountPaid: "0",
+          holdExpiresAt,
+        }))
+      ).returning();
+
+      return { rsvps, payment: null, partialPaymentsEnabled: true as const };
     }
 
     const [payment] = await db.insert(PaymentTable).values({
@@ -170,6 +212,30 @@ export const createReservationService = async ({ UserID, cart }: CreateReservati
       .where(eq(EventsTable.EventID, EventID));
     throw err;
   }
+};
+
+// Plan §5 — public, unauthenticated lookup by ID number, scoped to one event
+// (idNumber is unique per event, not globally — plan §7 decision). Returns
+// only balance/status info, never payment method details or transaction history.
+export const getRsvpLookupService = async (eventId: number, idNumber: string) => {
+  const rsvp = await db.query.RSVPTable.findFirst({
+    where: and(eq(RSVPTable.EventID, eventId), eq(RSVPTable.idNumber, idNumber)),
+    with: { event: true, ticketType: true },
+  });
+  if (!rsvp) return null;
+
+  const totalAmount = Number(rsvp.totalAmount);
+  const amountPaid = Number(rsvp.amountPaid);
+
+  return {
+    RSVPID: rsvp.RSVPID,
+    eventName: rsvp.event?.title ?? null,
+    ticketType: rsvp.ticketType?.name ?? null,
+    totalAmount,
+    amountPaid,
+    remainingBalance: Math.max(totalAmount - amountPaid, 0),
+    RSVPStatus: rsvp.RSVPStatus,
+  };
 };
 
 //Get All reservation from RSVP Table

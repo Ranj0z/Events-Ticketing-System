@@ -8,12 +8,17 @@ import {
   getPaymentByRSVPIDService,
   getPaymentStatusService,
   initiatePaymentService,
+  initiateInstallmentPaymentService,
   verifyGatewaySignature,
   handleGatewayWebhookService,
   PaymentAlreadyInitiatedError,
   PaymentNotFoundError,
   HoldExpiredError,
   GatewayRateLimitedError,
+  RsvpNotFoundError,
+  RsvpNotPartialPaymentError,
+  RsvpAlreadyFullyPaidError,
+  InvalidInstallmentAmountError,
   sweepExpiredHoldsService,
 } from "./payment.service";
 import { Request, Response } from "express";
@@ -40,6 +45,42 @@ export const initiatePaymentController = async (req: Request, res: Response) => 
       return res.status(410).json({ message: "This booking hold has expired" });
     if (error instanceof PaymentAlreadyInitiatedError)
       return res.status(409).json({ message: "A payment is already pending or completed for this booking" });
+    if (error instanceof GatewayRateLimitedError) {
+      if (error.retryAfterSeconds) res.set("Retry-After", String(error.retryAfterSeconds));
+      return res.status(429).json({ message: "Too many payment attempts, please try again shortly" });
+    }
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+// Partial-payments plan §4 — initiate one installment against a specific RSVP.
+// Body: { phoneNumber, amount }. amount must be >= 100 or the exact remaining balance.
+export const initiateInstallmentPaymentController = async (req: Request, res: Response) => {
+  try {
+    const rsvpId = parseInt(req.params.rsvpId);
+    const { phoneNumber, amount } = req.body;
+    if (isNaN(rsvpId)) return res.status(400).json({ message: "Invalid RSVP ID format" });
+    if (!phoneNumber) return res.status(400).json({ message: "phoneNumber is required" });
+    if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ message: "amount must be a positive number" });
+    }
+
+    const userId = (req as any).user?.UserID ?? null;
+
+    const result = await initiateInstallmentPaymentService({ rsvpId, phoneNumber, amount, userId });
+    return res.status(201).json(result);
+  } catch (error: any) {
+    if (error instanceof RsvpNotFoundError) return res.status(404).json({ message: "Reservation not found" });
+    if (error instanceof RsvpNotPartialPaymentError)
+      return res.status(409).json({ message: "This event does not support partial payments" });
+    if (error instanceof RsvpAlreadyFullyPaidError)
+      return res.status(409).json({ message: "This reservation is already fully paid" });
+    if (error instanceof InvalidInstallmentAmountError)
+      return res.status(400).json({ message: "Amount must be at least KES 100, or the exact remaining balance" });
+    if (error instanceof HoldExpiredError)
+      return res.status(410).json({ message: "This booking hold has expired" });
+    if (error instanceof PaymentAlreadyInitiatedError)
+      return res.status(409).json({ message: "A payment is already pending for this reservation" });
     if (error instanceof GatewayRateLimitedError) {
       if (error.retryAfterSeconds) res.set("Retry-After", String(error.retryAfterSeconds));
       return res.status(429).json({ message: "Too many payment attempts, please try again shortly" });
