@@ -1,12 +1,12 @@
-import { and, eq, sql, inArray } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import crypto from "crypto";
-import db from "../../Drizzle/db.js";
-import { EventsTable, PaymentTable, RSVPTable, TicketTypeTable } from "../../Drizzle/schema.js";
-import { normalizePhoneNumber } from "../../utils/normalizePhoneNumber.js";
-import { initiateGatewayStkPush } from "../../lib/paybillGateway.js";
-import { markReservationPaidService, releaseTicketTypeCapacity } from "../rsvp/reservation.service.js";
-import { sendConfirmationEmailService } from "../../mailer/confirmation-email.service.js";
-import { creditWalletService } from "../wallet/wallet.service.js";
+import axios from "axios";
+import db from "../../Drizzle/db";
+import { EventsTable, PaymentTable, RSVPTable } from "../../Drizzle/schema";
+import { normalizePhoneNumber } from "../../utils/normalizePhoneNumber";
+import { initiateGatewayStkPush } from "../../lib/paybillGateway";
+import { markReservationPaidService, releaseTicketTypeCapacity } from "../rsvp/reservation.service";
+import { creditWalletService } from "../wallet/wallet.service";
 
 const STATUS_MAP = {
   Pending: "pending",
@@ -45,6 +45,16 @@ export const getPaymentStatusService = async (paymentId: number) => {
 export class PaymentAlreadyInitiatedError extends Error {}
 export class PaymentNotFoundError extends Error {}
 export class HoldExpiredError extends Error {}
+
+export class GatewayRateLimitedError extends Error {
+  retryAfterSeconds?: number;
+
+  constructor(retryAfterSeconds?: number) {
+    super("Gateway rate limited");
+    this.name = "GatewayRateLimitedError";
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
 
 export const initiatePaymentService = async ({
   paymentId,
@@ -91,6 +101,25 @@ export const initiatePaymentService = async ({
 
     return { paymentId };
   } catch (error) {
+    // A 429 from the gateway (per-app or per-phone limiter in the Paybill
+    // Gateway's stkpush route) is retryable, not a real failure — leave the
+    // payment in "Pending" with no gatewayReference so the existing
+    // Pending-and-no-gatewayReference check above allows an immediate retry
+    // once the window passes, instead of terminally marking it "Failed".
+    if (axios.isAxiosError(error) && error.response?.status === 429) {
+      const retryAfterHeader = error.response.headers?.["retry-after"];
+      const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : undefined;
+
+      await db
+        .update(PaymentTable)
+        .set({ gatewayReference: null })
+        .where(eq(PaymentTable.PaymentID, paymentId));
+
+      throw new GatewayRateLimitedError(
+        Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined
+      );
+    }
+
     await db
       .update(PaymentTable)
       .set({ paymentStatus: "Failed", gatewayReference: null })
@@ -196,18 +225,6 @@ export const handleGatewayWebhookService = async (payload: {
     const rsvps = await db.query.RSVPTable.findMany({ where: eq(RSVPTable.PaymentID, payment.PaymentID) });
     for (const r of rsvps) {
       await markReservationPaidService(r.RSVPID);
-    }
-
-    // §6 — send confirmation email to each attendee now that payment is confirmed.
-    // Ticket type map is needed to include tier names in the email.
-    // Fire-and-forget; a send failure must not fail the webhook handler.
-    if (event) {
-      const ticketTypeIDs = [...new Set(rsvps.map((r) => r.TicketTypeID))];
-      const tts = await db.query.TicketTypeTable.findMany({
-        where: inArray(TicketTypeTable.TicketTypeID, ticketTypeIDs),
-      });
-      const ticketTypeById = new Map(tts.map((t) => [t.TicketTypeID, t]));
-      sendConfirmationEmailService({ rsvps, event, ticketTypeById }).catch(() => {});
     }
   } else {
     await releasePaymentBatch(payment);
