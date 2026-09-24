@@ -1,12 +1,12 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, inArray } from "drizzle-orm";
 import crypto from "crypto";
-import db from "../../Drizzle/db";
-import { EventsTable, PaymentTable, RSVPTable } from "../../Drizzle/schema";
-import { normalizePhoneNumber } from "../../utils/normalizePhoneNumber";
-import { initiateGatewayStkPush } from "../../lib/paybillGateway";
-import { markReservationPaidService, releaseTicketTypeCapacity } from "../rsvp/reservation.service";
-import { sendConfirmationEmailService } from "../../mailer/confirmation-email.service";
-import { creditWalletService } from "../wallet/wallet.service";
+import db from "../../Drizzle/db.js";
+import { EventsTable, PaymentTable, RSVPTable, TicketTypeTable } from "../../Drizzle/schema.js";
+import { normalizePhoneNumber } from "../../utils/normalizePhoneNumber.js";
+import { initiateGatewayStkPush } from "../../lib/paybillGateway.js";
+import { markReservationPaidService, releaseTicketTypeCapacity } from "../rsvp/reservation.service.js";
+import { sendConfirmationEmailService } from "../../mailer/confirmation-email.service.js";
+import { creditWalletService } from "../wallet/wallet.service.js";
 
 const STATUS_MAP = {
   Pending: "pending",
@@ -202,11 +202,9 @@ export const handleGatewayWebhookService = async (payload: {
     // Ticket type map is needed to include tier names in the email.
     // Fire-and-forget; a send failure must not fail the webhook handler.
     if (event) {
-      const { TicketTypeTable: TTTable } = await import("../../Drizzle/schema");
-      const { inArray } = await import("drizzle-orm");
       const ticketTypeIDs = [...new Set(rsvps.map((r) => r.TicketTypeID))];
       const tts = await db.query.TicketTypeTable.findMany({
-        where: inArray(TTTable.TicketTypeID, ticketTypeIDs),
+        where: inArray(TicketTypeTable.TicketTypeID, ticketTypeIDs),
       });
       const ticketTypeById = new Map(tts.map((t) => [t.TicketTypeID, t]));
       sendConfirmationEmailService({ rsvps, event, ticketTypeById }).catch(() => {});
