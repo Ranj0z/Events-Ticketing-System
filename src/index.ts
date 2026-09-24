@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express';
+import cors from "cors";
 import UserRoutes from './AllTables/auth/auth.routes';
 import paymentRoutes from './AllTables/payments/payment.routes';
 import rsvpRoutes from './AllTables/rsvp/reservation.route';
@@ -11,10 +12,10 @@ import EventImageRoutes from './AllTables/event_images/event-images.routes';
 import walletRoutes from './AllTables/wallet/wallet.route';
 import cron from 'node-cron';
 import { sweepExpiredHoldsService } from './AllTables/payments/payment.service';
+import { startWarmup } from './lib/warmup';
+import { logger } from './middleware/logger';
 
 const app = express();
-import cors from "cors";
-import { logger } from './middleware/logger';
 
 app.use(express.json({
   verify: (req: any, _res, buf) => {
@@ -23,11 +24,10 @@ app.use(express.json({
 }));
 
 app.use(logger);
-
-  app.use(cors({
-    origin: '*',
-    methods: ["GET", "POST", "PATCH", "PUT", "DELETE"]
-  }));
+app.use(cors({
+  origin: '*',
+  methods: ["GET", "POST", "PATCH", "PUT", "DELETE"]
+}));
 
 // Routes
 UserRoutes(app);
@@ -85,6 +85,7 @@ process.on('uncaughtException', (error) => {
 
 app.listen(8090, () => {
   console.log('Server is running on http://localhost:8090');
+  startWarmup();
 });
 
 // Releases capacity for any Pending booking whose 15-minute payment hold
